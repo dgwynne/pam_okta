@@ -125,6 +125,12 @@ session    include      password-auth
 session    include      postlogin
 ```
 
+```
+$ sudo install -d -m 0700 -o root -g root /var/run/okta
+$ cd oktad
+$ sudo ./build/oktad -d
+```
+
 `pam-test-harness` from https://www.dtucker.net/patches/ is included in
 the repo to help hack on this code.
 
