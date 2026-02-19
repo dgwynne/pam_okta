@@ -53,9 +53,10 @@ the daemon user.
 `socket=/path/to/uds/listener`, defaults to `/var/run/okta/sock`
 
 `sshd=servicename` - `sshd` has special handling to report the
-`SSH_CONNECTION` environment variable to `oktad`. This allows the
-special sshd handling to be applied to a different service name for
-testing purposes.
+`SSH_CONNECTION` environment variable to `oktad` with the intention
+of reporting the remote IP address of the SSH connection to the Okta
+API. This allows the special sshd handling to be applied to a different
+service name for testing purposes.
 
 `mode=device` - only attempt a Device Authentication flow. This is
 necessary at the moment while the code is rough, and because `oktad`
