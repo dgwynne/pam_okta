@@ -7,7 +7,7 @@ API is implemented.
 
 Instead of having a PAM module communicate with the Okta API directly,
 this implementation connects to an `oktad` daemon over a Unix Domain
-Socket, and has the daemon handle the API communication on the modules
+Socket and has the daemon handle the API communication on the modules
 behalf. This has the following benefits:
 
 - the module can be kept simple enough to only need libc and libpam as
@@ -17,7 +17,8 @@ behalf. This has the following benefits:
     same library
   - the code and side effects of the APIs are easier to reason about
     and clean up
-- the module does not need access to the Okta client_id and client_secret
+- the module and therefore the authenticating process does not need
+  access to the Okta client_id and client_secret
 - the `oktad` daemon forks a handler per `pam_okta` authentication request
   - this isolates the authenticating process running `pam_okta` from
     the secrets needed to talk to the Okta API
