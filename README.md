@@ -10,11 +10,11 @@ this implementation connects to an `oktad` daemon over a Unix Domain
 Socket, and has the daemon handle the API communication on the modules
 behalf. This has the following benefits:
 
-- the module can be kept simple enough to only libc and libpam as
+- the module can be kept simple enough to only need libc and libpam as
   dependencies
   - this avoids potential problems with the module and the application
     using the module depending on or dlopening different versions of the
-    same library.
+    same library
   - the code and side effects of the APIs are easier to reason about
     and clean up
 - the module does not need access to the Okta client_id and client_secret
