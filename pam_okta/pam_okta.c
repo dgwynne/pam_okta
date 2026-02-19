@@ -456,16 +456,11 @@ pam_sm_authenticate(pam_handle_t *pamh, int flags, int argc, const char **argv)
 	if (rv != PAM_SUCCESS)
 		return (rv);
 
-	pam_syslog(pamh, LOG_DEBUG, "%s[%u]", __func__, __LINE__);
-
 	s = okta_connect(st);
-	pam_syslog(pamh, LOG_DEBUG, "%s[%u]", __func__, __LINE__);
 	if (s == -1)
 		return (PAM_SERVICE_ERR);
 
-	pam_syslog(pamh, LOG_DEBUG, "%s[%u]", __func__, __LINE__);
 	rv = okta_authn(st, s);
-	pam_syslog(pamh, LOG_DEBUG, "%s[%u]", __func__, __LINE__);
 
 	do {
 		rv = okta_loop(pamh, st, s);
