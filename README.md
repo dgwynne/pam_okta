@@ -74,7 +74,7 @@ only supports Device Authentication currently.
 
 ```
 $ cd oktad
-$ meson build
+$ meson setup build
 # meson compile -C build
 ```
 
@@ -86,7 +86,7 @@ $ meson build
 
 ```
 $ cd pam_okta
-$ meson build
+$ meson setup build
 # meson compile -C build
 ```
 
@@ -140,7 +140,7 @@ the repo to help hack on this code.
 
 ```
 $ cd pam-test-harness
-$ meson build
+$ meson setup build
 $ meson compile -C build
 $ sudo ./build/pam-test-harness -s oktatest
 ```
