@@ -34,7 +34,7 @@ behalf. This has the following benefits:
 Put a file like this in `/etc/okta/oktad.conf`:
 
 ```
-# user "okta-daemon" # user the daemon drops prics to, defaults to _oktad
+# user "okta-daemon" # user the daemon drops privs to, defaults to _oktad
 # socket "/path/to/uds/listener" # defaults to /var/run/okta/sock
 host "something.okta.com"
 client_id "XXX"
@@ -129,6 +129,8 @@ session    include      postlogin
 ```
 $ sudo install -d -m 0700 -o root -g root /var/run/okta
 $ cd oktad
+$ # groupadd _oktad
+$ # useradd _oktad
 $ sudo ./build/oktad -d
 ```
 
