@@ -824,6 +824,8 @@ okta_handler(int c, const struct okta_config *conf)
 	struct request *req;
 	struct response *res;
 	char *prompt;
+	jwt_t *jwt = NULL;
+	const char *username;
 	int rv;
 
 	okta_handler_req(st, buf, sizeof(buf));
@@ -866,32 +868,20 @@ okta_handler(int c, const struct okta_config *conf)
 		return (0);
 	}
 
-	jwt_t *jwt = NULL;
-
 	if (jwt_decode(&jwt, response_string(res, "id_token"), NULL, 0) != 0)
 		lerrx(1, "jwt decode failed");
 
-	const char *username = jwt_get_grant(jwt, "preferred_username");
+	username = jwt_get_grant(jwt, "preferred_username");
 	if (username == NULL)
 		lerrx(1, "jwt grant is missing the username");
 
-	char *sep = strchr(username, '@');
-	int cmp;
-	if (sep == NULL)
-		cmp = strcasecmp(username, authn_username(st));
-	else {
-		size_t len = sep - username;
-		if (len != authn_username_len(st) - 1)
-			cmp = -1;
-		else
-			cmp = strncasecmp(username, authn_username(st), len);
-	}
+	rv = strcasecmp(username, st->user_email);
 
 	linfo("auth for pid %d user %s got %s from okta, returning %s",
 	    st->cr.pid, authn_username(st), username,
-	    cmp ? "failure" : "success");
+	    rv ? "failure" : "success");
 
-	okta_reply(st, cmp ? OKTA_CODE_FAILURE : OKTA_CODE_SUCCESS, NULL, 0);
+	okta_reply(st, rv ? OKTA_CODE_FAILURE : OKTA_CODE_SUCCESS, NULL, 0);
 
 	return (0);
 }
