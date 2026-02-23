@@ -788,8 +788,6 @@ okta_curl_init(struct state *st)
 	if (rv == -1)
 		lerrx(1, "user_email init failed");
 
-linfo("user email %s", st->user_email);
-
 	curl_global_init(CURL_GLOBAL_ALL);
 
 	client_id = curl_easy_escape(NULL,
