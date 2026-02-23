@@ -48,7 +48,7 @@
 #define nitems(_a) (sizeof((_a)) / sizeof((_a)[0]))
 
 static int		socket_open(const char *);
-static int		okta_handler(int, const struct okta_config *);
+static int		pam_okta_handler(int, const struct okta_config *);
 static void		sigchld(int);
 
 __dead static void
@@ -150,9 +150,9 @@ main(int argc, char **argv)
 			break;
 		case 0: /* child */
 			close(s);
-			return okta_handler(c, conf);
+			return pam_okta_handler(c, conf);
 		default: /* parent */
-			ldebug("%d ran okta_handler", pid);
+			ldebug("%d ran pam_okta handler", pid);
 			close(c);
 			break;
 		}
@@ -569,7 +569,7 @@ is_cstring(const char *str, size_t len)
 }
 
 static void
-okta_handler_req(struct state *st, char *buf, size_t buflen)
+pam_okta_handler_req(struct state *st, char *buf, size_t buflen)
 {
 	const struct ctl_authn_req *req = (const struct ctl_authn_req *)buf;
 	socklen_t crlen = sizeof(st->cr);
@@ -637,7 +637,8 @@ okta_handler_req(struct state *st, char *buf, size_t buflen)
 }
 
 static void
-okta_reply(struct state *st, unsigned int code, const char *snd, size_t sndlen)
+pam_okta_reply(struct state *st, unsigned int code,
+    const char *snd, size_t sndlen)
 {
 	struct ctl_authn_res res = {
 		.hdr = { .type = CTL_T_AUTHN_RES, .hdrlen = sizeof(res) },
@@ -656,14 +657,14 @@ okta_reply(struct state *st, unsigned int code, const char *snd, size_t sndlen)
 }
 
 static const char *
-okta_prompt(struct state *st, const char *snd, size_t sndlen,
+pam_okta_prompt(struct state *st, const char *snd, size_t sndlen,
     char *rcv, size_t rcvlen)
 {
 	struct ctl_authn_res *res = (struct ctl_authn_res *)rcv;
 	ssize_t rv;
 	size_t len;
 
-	okta_reply(st, OKTA_CODE_PROMPT, snd, sndlen);
+	pam_okta_reply(st, OKTA_CODE_PROMPT, snd, sndlen);
 
 	rv = read(st->fd, rcv, rcvlen);
 	switch (rv) {
@@ -824,7 +825,7 @@ okta_curl_init(struct state *st)
 static const char msg_auth_expired[] = "Authentication code expired";
 
 static int
-okta_handler(int c, const struct okta_config *conf)
+pam_okta_handler(int c, const struct okta_config *conf)
 {
 	struct state _st = { .fd = c, .conf = conf };
 	struct state *st = &_st;
@@ -836,7 +837,7 @@ okta_handler(int c, const struct okta_config *conf)
 	const char *username;
 	int rv;
 
-	okta_handler_req(st, buf, sizeof(buf));
+	pam_okta_handler_req(st, buf, sizeof(buf));
 
 	if (authn_username(st) == NULL || authn_username_len(st) <= 1)
 		lerrx(1, "no username in authn req from pid %d", st->cr.pid);
@@ -865,13 +866,13 @@ okta_handler(int c, const struct okta_config *conf)
 	if (rv == -1)
 		lerrx(1, "authorize prompt printf");
 
-	(void)okta_prompt(st, prompt, rv + 1, scratch, sizeof(scratch));
+	(void)pam_okta_prompt(st, prompt, rv + 1, scratch, sizeof(scratch));
 	free(prompt);
 
 	res = okta_device_auth_poll(st);
 	if (res == NULL) {
 		lwarnx("%s", msg_auth_expired);
-		okta_reply(st, OKTA_CODE_FAILURE,
+		pam_okta_reply(st, OKTA_CODE_FAILURE,
 		    msg_auth_expired, sizeof(msg_auth_expired));
 		return (0);
 	}
@@ -889,7 +890,8 @@ okta_handler(int c, const struct okta_config *conf)
 	    st->cr.pid, authn_username(st), username,
 	    rv ? "failure" : "success");
 
-	okta_reply(st, rv ? OKTA_CODE_FAILURE : OKTA_CODE_SUCCESS, NULL, 0);
+	pam_okta_reply(st, rv ? OKTA_CODE_FAILURE : OKTA_CODE_SUCCESS,
+	    NULL, 0);
 
 	return (0);
 }
