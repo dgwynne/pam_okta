@@ -29,6 +29,7 @@
 #include <stdlib.h>
 #include <signal.h>
 #include <unistd.h>
+#include <netdb.h>
 #include <poll.h>
 #include <pwd.h>
 #include <grp.h>
@@ -236,6 +237,7 @@ struct state {
 
 	char			*form;
 	size_t			 formlen;
+	char			*forwarded_for;
 
 	struct ucred		 cr;
 	struct authn_field	 authn_fields[CTL_AUTHN_REQ_NFIELDS];
@@ -329,6 +331,8 @@ request_init(struct state *st, const char *endpoint)
 
 	req->headers = NULL;
 	request_add_header(req, "Accept: application/json");
+	if (st->forwarded_for != NULL)
+		request_add_header(req, st->forwarded_for);
 
 	req->form = malloc(st->formlen + 1); /* + nul */
 	if (req->form == NULL)
@@ -834,6 +838,42 @@ okta_curl_init(struct state *st)
 
 	free(client_id);
 	free(client_secret);
+
+	if (st->authn_fields[CTL_AUTHN_REQ_SSHENV].len > 0) {
+		struct addrinfo hints = {
+			.ai_family = AF_UNSPEC,
+			.ai_socktype = SOCK_STREAM,
+			.ai_protocol = IPPROTO_TCP,
+			.ai_flags = AI_NUMERICHOST,
+		};
+		struct addrinfo *res0;
+		const char *sshenv;
+		char *sep;
+		char host[NI_MAXHOST];
+		size_t len;
+
+		sshenv = st->authn_fields[CTL_AUTHN_REQ_SSHENV].str;
+		sep = strchr(sshenv, ' ');
+		if (sep == NULL)
+			lerrx(1, "malformed SSH_CONNECTION");
+		len = sep - sshenv;
+		if (len >= sizeof(host))
+			lerrx(1, "malformed SSH_CONNECTION, long host");
+		memcpy(host, sshenv, len);
+		host[len] = '\0';
+
+		rv = getaddrinfo(host, NULL, &hints, &res0);
+		if (rv != 0) {
+			lerrx(1, "SSH_CONNECTION remote host: %s",
+			    gai_strerror(rv));
+		}
+		freeaddrinfo(res0);
+
+		rv = asprintf(&st->forwarded_for,
+		    "X-Forwarded-For: %s", host);
+		if (rv == -1)
+			lerrx(1, "X-Forwarded-For init");
+	}
 }
 
 static const char msg_auth_expired[] = "Authentication code expired";
