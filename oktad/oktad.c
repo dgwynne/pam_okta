@@ -517,6 +517,13 @@ static const char * const authn_field_names[] = {
 	[CTL_AUTHN_REQ_SSHENV]		= "sshenv",
 };
 
+static const char * const okta_code_names[] = {
+	[OKTA_CODE_PROMPT]		= "prompt",
+	[OKTA_CODE_SUCCESS]		= "success",
+	[OKTA_CODE_FAILURE]		= "failure",
+	[OKTA_CODE_DECLINE]		= "decline",
+};
+
 static inline const char *
 authn_username(const struct state *st)
 {
@@ -560,30 +567,6 @@ is_cstring(const char *str, size_t len)
 
 	return (1);
 }
-
-#if 0
-static int
-okta_prompt(int c, const char *msg)
-{
-	size_t msglen = strlen(msg) + 1;
-	struct ctl_authn_res res = {
-		.hdr = { .type = CTL_T_AUTHN_RES, .hdrlen = sizeof(res) },
-		.code = OKTA_CODE_SUCCESS,
-		.msglen = msglen,
-	};
-	struct iovec iov[2] = {
-		{ &res, sizeof(res) },
-		{ (void *)msg, msglen },
-	};
-	ssize_t rv;
-
-	rv = writev(c, iov, nitems(iov));
-	if (rv == -1)
-		lerrx(1, "prompt request");
-
-	return (0);
-}
-#endif
 
 static void
 okta_handler_req(struct state *st, char *buf, size_t buflen)
@@ -653,28 +636,34 @@ okta_handler_req(struct state *st, char *buf, size_t buflen)
 	}
 }
 
+static void
+okta_reply(struct state *st, unsigned int code, const char *snd, size_t sndlen)
+{
+	struct ctl_authn_res res = {
+		.hdr = { .type = CTL_T_AUTHN_RES, .hdrlen = sizeof(res) },
+		.code = code,
+		.msglen = sndlen,
+	};
+	struct iovec iov[2] = {
+		{ &res, sizeof(res) },
+		{ (void *)snd, sndlen },
+	};
+	ssize_t rv;
+
+	rv = writev(st->fd, iov, nitems(iov));
+	if (rv == -1)
+		lerr(1, "%s send", okta_code_names[code]);
+}
+
 static const char *
 okta_prompt(struct state *st, const char *snd, size_t sndlen,
     char *rcv, size_t rcvlen)
 {
 	struct ctl_authn_res *res = (struct ctl_authn_res *)rcv;
-	struct iovec iov[2] = {
-		{ res, sizeof(*res) },
-		{ (void *)snd, sndlen },
-	};
 	ssize_t rv;
 	size_t len;
 
-	assert(rcvlen >= sizeof(*res));
-	memset(res, 0, sizeof(*res));
-	res->hdr.type = CTL_T_AUTHN_RES;
-	res->hdr.hdrlen = sizeof(*res);
-	res->code = OKTA_CODE_PROMPT;
-	res->msglen = sndlen;
-
-	rv = writev(st->fd, iov, nitems(iov));
-	if (rv == -1)
-		lerr(1, "prompt send");
+	okta_reply(st, OKTA_CODE_PROMPT, snd, sndlen);
 
 	rv = read(st->fd, rcv, rcvlen);
 	switch (rv) {
@@ -712,25 +701,6 @@ okta_prompt(struct state *st, const char *snd, size_t sndlen,
 		lerrx(1, "prompt recv got invalid c string");
 
 	return (rcv);
-}
-
-static void
-okta_reply(struct state *st, unsigned int code, const char *snd, size_t sndlen)
-{
-	struct ctl_authn_res res = {
-		.hdr = { .type = CTL_T_AUTHN_RES, .hdrlen = sizeof(res) },
-		.code = code,
-		.msglen = sndlen,
-	};
-	struct iovec iov[2] = {
-		{ &res, sizeof(res) },
-		{ (void *)snd, sndlen },
-	};
-	ssize_t rv;
-
-	rv = writev(st->fd, iov, nitems(iov));
-	if (rv == -1)
-		lerr(1, "reply send");
 }
 
 int
