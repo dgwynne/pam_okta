@@ -29,6 +29,7 @@
 #include <stdlib.h>
 #include <signal.h>
 #include <unistd.h>
+#include <poll.h>
 #include <pwd.h>
 #include <grp.h>
 #include <assert.h>
@@ -243,6 +244,12 @@ struct state {
 	int64_t			 start_nsec;
 };
 
+__dead static void
+pam_okta_disconnected(struct state *st)
+{
+	ldebug("pid %d disconnected, exiting", st->cr.pid);
+	exit(0);
+}
 
 struct request {
 	const char		*endpoint;
@@ -726,6 +733,41 @@ okta_reply(struct state *st, unsigned int code, const char *snd, size_t sndlen)
 		lerr(1, "reply send");
 }
 
+int
+fdsleep(struct state *st, int64_t nsecs)
+{
+	struct pollfd pfd = {
+		.fd = st->fd,
+		.events = POLLRDHUP,
+	};
+	struct timespec ts;
+	int rv;
+
+	ts.tv_sec = nsecs / NSECS;
+	ts.tv_nsec = nsecs % NSECS;
+
+	rv = ppoll(&pfd, 1, &ts, NULL);
+	switch (rv) {
+	case -1:
+		if (errno == EINTR)
+			return (-1);
+
+		lerr(1, "%s ppoll", __func__);
+		/* NOTREACHED */
+	case 0:
+		/* timeout expired */
+		return (0);
+	}
+
+	if (pfd.revents & POLLHUP) {
+		pam_okta_disconnected(st);
+		/* NOTREACHED */
+	}
+
+	lerrx(1, "unexpected ppoll state: fd %d, events 0x%x, revents 0x%x",
+	    pfd.fd, pfd.events, pfd.revents);
+}
+
 static struct response *
 okta_device_auth_poll(struct state *st)
 {
@@ -748,9 +790,7 @@ okta_device_auth_poll(struct state *st)
 
 		diff = now - last;
 		if (diff < ival) {
-			diff += NSECS - 1;
-			diff /= NSECS;
-			if (sleep(diff) != 0)
+			if (fdsleep(st, diff) != 0)
 				continue;
 		}
 
