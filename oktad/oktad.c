@@ -389,13 +389,26 @@ request_add_data(struct request *req, const char *name, const char *data)
 }
 
 static struct response *
-request_exec(struct request *req)
+request_exec(struct request *req, int64_t timeoutns)
 {
 	struct response *res;
 	CURL *curl = req->curl;
 	long status;
 
 	req->form[req->formlen] = '\0';
+
+	if (timeoutns > 0) {
+		long timeout = timeoutns / 1000000; /* nsec to msec */
+
+		if (timeout < 500)
+			timeout = 500;
+
+		if (curl_easy_setopt(curl,
+		    CURLOPT_TIMEOUT_MS, timeout) != CURLE_OK) {
+			lerrx(1, "%s set timeout %ld ms failed",
+			    req->endpoint, timeout);
+		}
+	}
 
 	if (curl_easy_setopt(curl, CURLOPT_HTTPHEADER, req->headers)
 	    != CURLE_OK)
@@ -745,14 +758,15 @@ okta_device_auth_poll(struct state *st)
 	struct response *authorize = st->authorize;
 	struct request *req;
 	struct response *res;
-	int64_t expires, now, last, diff, ivals, ival;
+	int64_t expires, now, last, diff, ival, tmo;
 	const char *device_code;
 
 	device_code = response_string(authorize, "device_code");
 
 	expires = last = st->start_nsec;
 	expires += response_int64(authorize, "expires_in") * NSECS;
-	ival = (ivals = response_int64(authorize, "interval")) * NSECS;
+	ival = response_int64(authorize, "interval") * NSECS;
+	tmo = ival - (NSECS / 2);
 
 	for (;;) {
 		now = clock_read();
@@ -773,7 +787,7 @@ okta_device_auth_poll(struct state *st)
 	    	    "urn:ietf:params:oauth:grant-type:device_code");
 		request_add_data(req, "device_code", device_code);
 
-		res = request_exec(req);
+		res = request_exec(req, tmo);
 		if (res->status_code == 200)
 			break;
 		if (res->status_code != 400) {
@@ -851,7 +865,7 @@ pam_okta_handler(int c, const struct okta_config *conf)
 
 	request_add_data(req, "scope", "openid profile offline_access");
 
-	res = st->authorize = request_exec(req);
+	res = st->authorize = request_exec(req, 0);
 	if (res->status_code != 200) {
 		/* XXX we should reply to pam */
 		printf("oh no %s", res->data);
