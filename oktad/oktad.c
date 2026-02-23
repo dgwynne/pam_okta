@@ -607,7 +607,7 @@ okta_handler_req(struct state *st, char *buf, size_t buflen)
 	if (rv == -1)
 		lerr(1, "authn req recv");
 	if (rv == 0)
-		exit(0);
+		pam_okta_disconnected(st);
 
 	len = rv;
 
@@ -682,7 +682,7 @@ okta_prompt(struct state *st, const char *snd, size_t sndlen,
 		lerr(1, "prompt recv");
 		/* NOTREACHED */
 	case 0:
-		lerrx(1, "prompt recv disconnect");
+		pam_okta_disconnected(st);
 		/* NOTREACHED */
 	default:
 		break;
