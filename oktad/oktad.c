@@ -231,6 +231,7 @@ struct state {
 	int			 fd;
 	const struct okta_config *
 				 conf;
+	char			*user_email;
 
 	char			*form;
 	size_t			 formlen;
@@ -781,6 +782,13 @@ okta_curl_init(struct state *st)
 	char *client_id;
 	char *client_secret;
 	int rv;
+
+	rv = asprintf(&st->user_email, "%s@%s",
+	    authn_username(st), st->conf->domain);
+	if (rv == -1)
+		lerrx(1, "user_email init failed");
+
+linfo("user email %s", st->user_email);
 
 	curl_global_init(CURL_GLOBAL_ALL);
 

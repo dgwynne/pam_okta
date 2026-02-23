@@ -96,7 +96,7 @@ typedef struct {
 
 %}
 
-%token	SOCKET HOST CLIENT_ID CLIENT_SECRET USER
+%token	SOCKET HOST DOMAIN CLIENT_ID CLIENT_SECRET USER
 %token	INCLUDE
 %token	ERROR
 %token	<v.string>		STRING
@@ -111,6 +111,7 @@ grammar		: /* empty */
 		| grammar varset '\n'
 		| grammar socket '\n'
 		| grammar host '\n'
+		| grammar domain '\n'
 		| grammar client_id '\n'
 		| grammar client_secret '\n'
 		| grammar user '\n'
@@ -192,6 +193,17 @@ host		: HOST string {
 		}
 		;
 
+domain		: DOMAIN string {
+			if (conf->domain != NULL) {
+				yyerror("domain is already configured");
+				free($2);
+				YYERROR;
+			}
+
+			conf->domain = $2;
+		}
+		;
+
 client_id	: CLIENT_ID string {
 			if (conf->client_id != NULL) {
 				yyerror("client id is already configured");
@@ -258,6 +270,7 @@ lookup(char *s)
 	static const struct keywords keywords[] = {
 		{ "client_id",		CLIENT_ID },
 		{ "client_secret",	CLIENT_SECRET },
+		{ "domain",		DOMAIN },
 		{ "host",		HOST },
 		{ "socket",		SOCKET },
 		{ "user",		USER },
@@ -605,6 +618,8 @@ parse_config(const char *filename)
 	}
 	if (conf->host == NULL)
 		yyerror("okta host has not been configured");
+	if (conf->domain == NULL)
+		yyerror("okta user email domain has not been configured");
 	if (conf->client_id == NULL)
 		yyerror("okta client_id has not been configured");
 	if (conf->client_secret == NULL)
@@ -708,6 +723,7 @@ clear_config(struct okta_config *c)
 	free(c->user);
 	free(c->sockname);
 	free(c->host);
+	free(c->domain);
 	free(c->client_id);
 	free(c->client_secret);
 
@@ -721,6 +737,7 @@ dump_config(const struct okta_config *c)
 	printf("socket \"%s\"\n", c->sockname);
 	printf("\n");
 	printf("host \"%s\"\n", c->host);
+	printf("domain \"%s\"\n", c->domain);
 	printf("client_id \"%s\"\n", c->client_id);
 	printf("client_secret \"%s\"\n", c->client_secret);
 }

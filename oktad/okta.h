@@ -26,6 +26,7 @@ struct okta_config {
 	char		*sockname;
 
 	char		*host;
+	char		*domain;
 	char		*client_id;
 	char		*client_secret;
 };
