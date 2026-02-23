@@ -37,9 +37,13 @@ Put a file like this in `/etc/okta/oktad.conf`:
 # user "okta-daemon" # user the daemon drops privs to, defaults to _oktad
 # socket "/path/to/uds/listener" # defaults to /var/run/okta/sock
 host "something.okta.com"
+domain "example.com"
 client_id "XXX"
 client_secret "YYY"
 ```
+
+The domain configuration is added to the authenticating username to
+create an "email" style identifier for the user.
 
 `/etc/okta` and `/etc/okta/oktad.conf` can be configured as only
 accessible to the root user. The configuration file is opened by
