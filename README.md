@@ -2,8 +2,7 @@
 
 This provides a `pam_okta` PAM module (Pluggable Authentication Modules
 module?) and a companion `oktad` daemon to support authenticating users
-via Okta. Currently only authentication via the Device Authentication
-API is implemented.
+via Okta using the Device Authorization and Direct Authentication flows.
 
 Instead of having a PAM module communicate with the Okta API directly,
 this implementation connects to an `oktad` daemon over a Unix Domain
