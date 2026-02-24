@@ -62,9 +62,15 @@ of reporting the remote IP address of the SSH connection to the Okta
 API. This allows the special sshd handling to be applied to a different
 service name for testing purposes.
 
-`mode=device` - only attempt a Device Authentication flow. This is
-necessary at the moment while the code is rough, and because `oktad`
-only supports Device Authentication currently.
+`mode=mfa-oob` directly authenticates users using their password and
+possibly out-of-band (OOB) as a second factor. This is the default mode.
+It follows the [Direct Authentication using the Okta Verify Push (MFA)](https://developer.okta.com/docs/guides/configure-direct-auth-grants/dmfaoobov/main/) flow.
+
+`mode=oob` only attempts out-of-band (OOB) authentication using Okta
+Verify Push.
+It follows the [Direct Authentication using the Okta Verify Push (primary factor)](https://developer.okta.com/docs/guides/configure-direct-auth-grants/coobov/main/) flow.
+
+`mode=device` uses the [Device Authentication](https://developer.okta.com/docs/guides/device-authorization-grant/main/) flow to authenticate users.
 
 ## Building `oktad`
 

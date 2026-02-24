@@ -43,8 +43,9 @@ struct ctl_authn_req {
 	}			version;
 
 	unsigned int		mode;
-#define OKTA_MODE_DIRECT_AUTH		0
-#define OKTA_MODE_DEVICE_AUTH		1
+#define OKTA_MODE_MFA_OOB		0
+#define OKTA_MODE_OOB			1
+#define OKTA_MODE_DEVICE_AUTH		2
 
 	unsigned int		fields[CTL_AUTHN_REQ_NFIELDS];
 };

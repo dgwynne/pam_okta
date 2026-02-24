@@ -651,7 +651,8 @@ pam_okta_handler_req(struct state *st, char *buf, size_t buflen)
 	}
 
 	switch (req->mode) {
-	case OKTA_MODE_DIRECT_AUTH:
+	case OKTA_MODE_MFA_OOB:
+	case OKTA_MODE_OOB:
 	case OKTA_MODE_DEVICE_AUTH:
 		st->mode = req->mode;
 		break;
@@ -796,9 +797,15 @@ struct okta_token_poller {
 	const char *scope;
 };
 
-static const struct okta_token_poller okta_oob_poller = {
+static const struct okta_token_poller okta_mfa_oob_poller = {
 	.code_field = "oob_code",
 	.grant_type = "http://auth0.com/oauth/grant-type/mfa-oob",
+	.scope = okta_scopes,
+};
+
+static const struct okta_token_poller okta_oob_poller = {
+	.code_field = "oob_code",
+	.grant_type = "urn:okta:params:oauth:grant-type:oob",
 	.scope = okta_scopes,
 };
 
@@ -990,7 +997,7 @@ okta_curl_init(struct state *st)
 
 
 static void
-okta_oob_auth(struct state *st)
+okta_oob_challenge(struct state *st, const struct okta_token_poller *p)
 {
 	struct response *res_poll = st->res_poll;
 	struct response *res;
@@ -1020,19 +1027,19 @@ okta_oob_auth(struct state *st)
 	free(prompt);
 
 	/* re-using res */
-	res = okta_token_poll(st, &okta_oob_poller);
+	res = okta_token_poll(st, p);
 	okta_token_done(st, res);
 }
 
 static void
-okta_direct_auth(struct state *st)
+okta_mfa_oob_auth(struct state *st)
 {
 	struct request *req;
 	struct response *res;
 	const char *challenge_type;
 
 	if (authn_password(st) == NULL) {
-		lwarnx("password required for direct authentication");
+		lwarnx("password required for mfa-oob authentication");
 		pam_okta_reply(st, OKTA_CODE_FAILURE,
 		    msg_password_required, sizeof(msg_password_required));
 		return;
@@ -1090,13 +1097,46 @@ okta_direct_auth(struct state *st)
 
 	challenge_type = response_string(st->res_poll, "challenge_type");
 	if (strcmp(challenge_type, OKTA_CHALLENGE_T_OOB) == 0) {
-		okta_oob_auth(st);
+		okta_oob_challenge(st, &okta_mfa_oob_poller);
 		return;
 	}
 
 	lwarnx("unsupported challenge type %s", challenge_type);
 	pam_okta_reply(st, OKTA_CODE_FAILURE,
 	    msg_unsupported_mfa, sizeof(msg_unsupported_mfa));
+	return;
+
+res_error:
+	lerrx(1, "%s status code %u %s: %s",
+	    res->endpoint, res->status_code,
+	    response_string(res, "error"),
+	    response_string(res, "error_description"));
+}
+
+static void
+okta_oob_auth(struct state *st)
+{
+	struct request *req;
+	struct response *res;
+
+	req = request_init(st, "/oauth2/default/v1/primary-authenticate");
+
+	request_add_data(req, "login_hint", authn_username(st));
+	request_add_data(req, "challenge_hint", okta_oob_poller.grant_type);
+	request_add_data(req, "channel_hint", "push");
+
+	res = st->res_poll = request_exec(req, 0);
+	switch (res->status_code) {
+	case 200:
+		/* oob has been initiated */
+		break;
+	default:
+		goto res_error;
+	}
+
+	st->start_nsec = clock_read();
+
+	okta_oob_challenge(st, &okta_oob_poller);
 	return;
 
 res_error:
@@ -1167,8 +1207,11 @@ pam_okta_handler(int c, const struct okta_config *conf)
 	okta_curl_init(st);
 
 	switch (st->mode) {
-	case OKTA_MODE_DIRECT_AUTH:
-		okta_direct_auth(st);
+	case OKTA_MODE_MFA_OOB:
+		okta_mfa_oob_auth(st);
+		break;
+	case OKTA_MODE_OOB:
+		okta_oob_auth(st);
 		break;
 	case OKTA_MODE_DEVICE_AUTH:
 		okta_device_auth(st);

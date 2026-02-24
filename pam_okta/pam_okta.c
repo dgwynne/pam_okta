@@ -84,8 +84,10 @@ parse_args(struct state *st, int argc, const char **argv)
 			st->first_pass = CFG_FIRST_PASS_USE;
 		} else if (strcmp(argv[i], "try_first_pass") == 0) {
 			st->first_pass = CFG_FIRST_PASS_TRY;
-		} else if (strcmp(argv[i], "mode=direct") == 0) {
-			st->mode = OKTA_MODE_DIRECT_AUTH;
+		} else if (strcmp(argv[i], "mode=mfa-oob") == 0) {
+			st->mode = OKTA_MODE_MFA_OOB;
+		} else if (strcmp(argv[i], "mode=oob") == 0) {
+			st->mode = OKTA_MODE_OOB;
 		} else if (strcmp(argv[i], "mode=device") == 0) {
 			st->mode = OKTA_MODE_DEVICE_AUTH;
 		} else if (strncmp(argv[i], sockopt, SOCKOPTLEN) == 0) {
@@ -180,7 +182,8 @@ okta_authn_prepare(struct state *st)
 	}
 	st->userlen = strlen(st->user) + 1;
 
-	if (st->mode == OKTA_MODE_DIRECT_AUTH) {
+	/* Okta Verify Push (MFA) starts with the username and password */
+	if (st->mode == OKTA_MODE_MFA_OOB) {
 		rv = okta_authn_password(pamh, st);
 		if (rv != PAM_SUCCESS)
 			return (rv);
@@ -441,7 +444,7 @@ pam_sm_authenticate(pam_handle_t *pamh, int flags, int argc, const char **argv)
 		.pamh = pamh,
 		.sockname = "/var/run/okta/sock",
 		.sshd = "sshd",
-		.mode = OKTA_MODE_DIRECT_AUTH,
+		.mode = OKTA_MODE_MFA_OOB,
 	};
 	struct state *st = &_st;
 	int rv;
