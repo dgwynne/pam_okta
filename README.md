@@ -84,7 +84,7 @@ It follows the [Direct Authentication using the Okta Verify Push (primary factor
 ```
 $ cd oktad
 $ meson setup build
-# meson compile -C build
+$ meson compile -C build
 ```
 
 ## Building `pam_okta`
@@ -96,7 +96,7 @@ $ meson setup build
 ```
 $ cd pam_okta
 $ meson setup build
-# meson compile -C build
+$ meson compile -C build
 ```
 
 ## Installing
