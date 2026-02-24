@@ -220,6 +220,14 @@ sigchld(int sig)
 #include <jwt.h>
 #include <ctype.h>
 
+static const char msg_auth_expired[] = "Authentication code expired";
+static const char msg_password_required[] = "Password required";
+static const char msg_unsupported_mfa[] = "MFA challenge is not supported";
+
+/* long strings are long */
+#define OKTA_CHALLENGE_T_OOB "http://auth0.com/oauth/grant-type/mfa-oob"
+#define OKTA_CHALLENGE_T_OTP "http://auth0.com/oauth/grant-type/mfa-otp"
+
 static char scratch[65536];
 
 #define NSECS 1000000000LL
@@ -241,7 +249,9 @@ struct state {
 
 	struct ucred		 cr;
 	struct authn_field	 authn_fields[CTL_AUTHN_REQ_NFIELDS];
-	struct response		*authorize;
+	unsigned int		 mode;
+	struct response		*res_mfa;
+	struct response		*res_poll;
 
 	int64_t			 start_nsec;
 };
@@ -553,6 +563,18 @@ authn_username_len(const struct state *st)
 	return (st->authn_fields[CTL_AUTHN_REQ_USERNAME].len);
 }
 
+static inline const char *
+authn_password(const struct state *st)
+{
+	return (st->authn_fields[CTL_AUTHN_REQ_PASSWORD].str);
+}
+
+static inline size_t
+authn_password_len(const struct state *st)
+{
+	return (st->authn_fields[CTL_AUTHN_REQ_PASSWORD].len);
+}
+
 static int64_t
 clock_read(void)
 {
@@ -584,6 +606,8 @@ is_cstring(const char *str, size_t len)
 
 	return (1);
 }
+
+static const char okta_scopes[] = "openid profile offline_access";
 
 static void
 pam_okta_handler_req(struct state *st, char *buf, size_t buflen)
@@ -624,6 +648,16 @@ pam_okta_handler_req(struct state *st, char *buf, size_t buflen)
 	if (req->version.major != 0) {
 		lerrx(1, "authn req version %u.%u is unsupported, exiting",
 		    req->version.major, req->version.minor);
+	}
+
+	switch (req->mode) {
+	case OKTA_MODE_DIRECT_AUTH:
+	case OKTA_MODE_DEVICE_AUTH:
+		st->mode = req->mode;
+		break;
+	default:
+		lerrx(1, "unexpected mode %u, exiting", req->mode);
+		/* NOTREACHED */
 	}
 
 	ptr = buf + req->hdr.hdrlen;
@@ -756,23 +790,80 @@ fdsleep(struct state *st, int64_t nsecs)
 	    pfd.fd, pfd.events, pfd.revents);
 }
 
-static struct response *
-okta_device_auth_poll(struct state *st)
+struct okta_token_poller {
+	const char *code_field;
+	const char *grant_type;
+	const char *scope;
+};
+
+static const struct okta_token_poller okta_oob_poller = {
+	.code_field = "oob_code",
+	.grant_type = "http://auth0.com/oauth/grant-type/mfa-oob",
+	.scope = okta_scopes,
+};
+
+static const struct okta_token_poller okta_device_poller = {
+	.code_field = "device_code",
+	.grant_type = "urn:ietf:params:oauth:grant-type:device_code",
+};
+
+static void
+okta_token_done(struct state *st, struct response *res)
 {
-	struct response *authorize = st->authorize;
+	jwt_t *jwt = NULL;
+	const char *username;
+	int cmp;
+
+	if (res == NULL) {
+		lwarnx("%s", msg_auth_expired);
+		pam_okta_reply(st, OKTA_CODE_FAILURE,
+		    msg_auth_expired, sizeof(msg_auth_expired));
+		return;
+	}
+	if (res->status_code != 200) { /* 401 or 403 */
+		linfo("auth for pid %d user %s got %u %s: %s",
+		    st->cr.pid, authn_username(st), res->status_code,
+		    response_string(res, "error"),
+		    response_string(res, "error_description"));
+		pam_okta_reply(st, OKTA_CODE_FAILURE, NULL, 0);
+		return;
+	}
+
+	if (jwt_decode(&jwt, response_string(res, "id_token"), NULL, 0) != 0)
+		lerrx(1, "jwt decode failed");
+
+	username = jwt_get_grant(jwt, "preferred_username");
+	if (username == NULL)
+		lerrx(1, "jwt grant is missing the username");
+
+	cmp = strcasecmp(username, st->user_email);
+
+	linfo("auth for pid %d user %s got %s from okta, returning %s",
+	    st->cr.pid, authn_username(st), username,
+	    cmp ? "failure" : "success");
+
+	pam_okta_reply(st, cmp ? OKTA_CODE_FAILURE : OKTA_CODE_SUCCESS,
+	    NULL, 0);
+}
+
+static struct response *
+okta_token_poll(struct state *st, const struct okta_token_poller *p)
+{
+	struct response *res_mfa = st->res_mfa;
+	struct response *res_poll = st->res_poll;
 	struct request *req;
 	struct response *res;
 	int64_t expires, now, last, diff, ival, tmo;
-	const char *device_code;
+	const char *code;
 
-	device_code = response_string(authorize, "device_code");
+	code = response_string(res_poll, p->code_field);
 
 	expires = last = st->start_nsec;
-	expires += response_int64(authorize, "expires_in") * NSECS;
-	ival = response_int64(authorize, "interval") * NSECS;
+	expires += response_int64(res_poll, "expires_in") * NSECS;
+	ival = response_int64(res_poll, "interval") * NSECS;
 	tmo = ival - (NSECS / 2);
 
-	for (;;) {
+	do {
 		now = clock_read();
 		if (now > expires)
 			return (NULL);
@@ -787,20 +878,41 @@ okta_device_auth_poll(struct state *st)
 
 		req = request_init(st, "/oauth2/default/v1/token");
 
-		request_add_data(req, "grant_type",
-	    	    "urn:ietf:params:oauth:grant-type:device_code");
-		request_add_data(req, "device_code", device_code);
-
-		res = request_exec(req, tmo);
-		if (res->status_code == 200)
-			break;
-		if (res->status_code != 400) {
-			lerrx(1, "%s returned status code %u",
-			    res->endpoint, res->status_code);
+		if (p->scope != NULL)
+			request_add_data(req, "scope", p->scope);
+		request_add_data(req, "grant_type", p->grant_type);
+		request_add_data(req, p->code_field, code);
+		if (res_mfa != NULL) {
+			request_add_data(req, "mfa_token",
+			    response_string(res_mfa, "mfa_token"));
 		}
 
-		response_free(res);
-	}
+		res = request_exec(req, tmo);
+		switch (res->status_code) {
+		case 200:
+		case 401:
+		case 403:
+			break;
+		case 429:
+			lwarnx("%s status %u: %s",
+			    res->endpoint, res->status_code, res->data);
+			response_free(res);
+			res = NULL;
+			break;
+		case 400:
+			if (strcmp(response_string(res, "error"),
+			    "authorization_pending") == 0) {
+				response_free(res);
+				res = NULL;
+				break;
+			}
+			/* FALLTHROUGH */
+		default:
+			lerrx(1, "%s status %u: %s",
+			    res->endpoint, res->status_code, res->data);
+			/* NOTREACHED */
+		}
+	} while (res == NULL);
 
 	return (res);
 }
@@ -876,41 +988,151 @@ okta_curl_init(struct state *st)
 	}
 }
 
-static const char msg_auth_expired[] = "Authentication code expired";
 
-static int
-pam_okta_handler(int c, const struct okta_config *conf)
+static void
+okta_oob_auth(struct state *st)
 {
-	struct state _st = { .fd = c, .conf = conf };
-	struct state *st = &_st;
-	char buf[65536]; /* the authn fields live here */
+	struct response *res_poll = st->res_poll;
+	struct response *res;
+	char *prompt;
+	const char *binding_method;
+	int rv;
+
+	binding_method = response_string(res_poll, "binding_method");
+	if (strcmp(binding_method, "none") == 0) {
+		rv = asprintf(&prompt,
+		    "Push notification sent, press Enter to continue\n");
+	} else if (strcmp(binding_method, "transfer") == 0) {
+		rv = asprintf(&prompt,
+		    "Push code %s sent, press Enter to continue\n",
+		    response_string(res_poll, "binding_code"));
+	} else {
+		lwarnx("unsupported binding method %s", binding_method);
+		pam_okta_reply(st, OKTA_CODE_FAILURE,
+		    msg_unsupported_mfa, sizeof(msg_unsupported_mfa));
+		return;
+	}
+
+	if (rv == -1)
+		lerrx(1, "oob auth prompt");
+
+	(void)pam_okta_prompt(st, prompt, rv + 1, scratch, sizeof(scratch));
+	free(prompt);
+
+	/* re-using res */
+	res = okta_token_poll(st, &okta_oob_poller);
+	okta_token_done(st, res);
+}
+
+static void
+okta_direct_auth(struct state *st)
+{
+	struct request *req;
+	struct response *res;
+	const char *challenge_type;
+
+	if (authn_password(st) == NULL) {
+		lwarnx("password required for direct authentication");
+		pam_okta_reply(st, OKTA_CODE_FAILURE,
+		    msg_password_required, sizeof(msg_password_required));
+		return;
+	}
+
+	req = request_init(st, "/oauth2/default/v1/token");
+
+	request_add_data(req, "scope", okta_scopes);
+	request_add_data(req, "grant_type", "password");
+	request_add_data(req, "username", authn_username(st));
+	request_add_data(req, "password", authn_password(st));
+
+	res = st->res_mfa = request_exec(req, 0);
+	switch (res->status_code) {
+	case 200:
+		/* password auth succeeded */
+		okta_token_done(st, res);
+		return;
+	case 400:
+		if (strcmp(response_string(res, "error"),
+		    "invalid_grant") == 0) {
+			const char *msg;
+
+			msg = response_string(res, "error_description");
+			pam_okta_reply(st, OKTA_CODE_FAILURE,
+			    msg, strlen(msg) + 1);
+			return;
+		}
+		goto res_error;
+	case 403:
+		if (strcmp(response_string(res, "error"),
+		    "mfa_required") == 0)
+			break;
+		goto res_error;
+	default:
+		goto res_error;
+	}
+
+	req = request_init(st, "/oauth2/default/v1/challenge");
+
+	request_add_data(req, "mfa_token", response_string(res, "mfa_token"));
+	request_add_data(req, "channel_hint", "push");
+	request_add_data(req, "challenge_types_supported",
+	    OKTA_CHALLENGE_T_OOB
+#ifdef notyet
+	    " " OKTA_CHALLENGE_T_OTP);
+#endif
+	);
+
+	res = st->res_poll = request_exec(req, 0);
+	if (st->res_poll->status_code != 200)
+		goto res_error;
+
+	st->start_nsec = clock_read();
+
+	challenge_type = response_string(st->res_poll, "challenge_type");
+	if (strcmp(challenge_type, OKTA_CHALLENGE_T_OOB) == 0) {
+		okta_oob_auth(st);
+		return;
+	}
+
+	lwarnx("unsupported challenge type %s", challenge_type);
+	pam_okta_reply(st, OKTA_CODE_FAILURE,
+	    msg_unsupported_mfa, sizeof(msg_unsupported_mfa));
+	return;
+
+res_error:
+	lerrx(1, "%s status code %u %s: %s",
+	    res->endpoint, res->status_code,
+	    response_string(res, "error"),
+	    response_string(res, "error_description"));
+}
+
+static void
+okta_device_auth(struct state *st)
+{
 	struct request *req;
 	struct response *res;
 	char *prompt;
-	jwt_t *jwt = NULL;
-	const char *username;
 	int rv;
-
-	pam_okta_handler_req(st, buf, sizeof(buf));
-
-	if (authn_username(st) == NULL || authn_username_len(st) <= 1)
-		lerrx(1, "no username in authn req from pid %d", st->cr.pid);
-
-	linfo("authn request for user %s from pid %d",
-	    authn_username(st), st->cr.pid);
-
-	okta_curl_init(st);
 
 	req = request_init(st, "/oauth2/default/v1/device/authorize");
 
-	request_add_data(req, "scope", "openid profile offline_access");
+	request_add_data(req, "scope", okta_scopes);
 
-	res = st->authorize = request_exec(req, 0);
-	if (res->status_code != 200) {
-		/* XXX we should reply to pam */
-		printf("oh no %s", res->data);
-		lerr(1, "%s returned status code %u",
-		    res->endpoint, res->status_code);
+	res = st->res_poll = request_exec(req, 0);
+	switch (res->status_code) {
+	case 200:
+		break;
+	case 400:
+	case 401:
+		linfo("%s returned %u %s: %s", res->endpoint, res->status_code,
+		    response_string(res, "error"),
+		    response_string(res, "error_description"));
+		/* NOTREACHED */
+	case 429:
+	default:
+		lerr(1, "%s returned %u: %s", res->endpoint,
+		    res->status_code, res->data);
+		/* NOTREACHED */
 	}
 
 	st->start_nsec = clock_read();
@@ -923,29 +1145,39 @@ pam_okta_handler(int c, const struct okta_config *conf)
 	(void)pam_okta_prompt(st, prompt, rv + 1, scratch, sizeof(scratch));
 	free(prompt);
 
-	res = okta_device_auth_poll(st);
-	if (res == NULL) {
-		lwarnx("%s", msg_auth_expired);
-		pam_okta_reply(st, OKTA_CODE_FAILURE,
-		    msg_auth_expired, sizeof(msg_auth_expired));
-		return (0);
+	res = okta_token_poll(st, &okta_device_poller);
+	okta_token_done(st, res);
+}
+
+static int
+pam_okta_handler(int c, const struct okta_config *conf)
+{
+	struct state _st = { .fd = c, .conf = conf };
+	struct state *st = &_st;
+	char buf[65536]; /* the authn fields live here */
+
+	pam_okta_handler_req(st, buf, sizeof(buf));
+
+	if (authn_username(st) == NULL || authn_username_len(st) <= 1)
+		lerrx(1, "no username in authn req from pid %d", st->cr.pid);
+
+	linfo("authn request for user %s from pid %d",
+	    authn_username(st), st->cr.pid);
+
+	okta_curl_init(st);
+
+	switch (st->mode) {
+	case OKTA_MODE_DIRECT_AUTH:
+		okta_direct_auth(st);
+		break;
+	case OKTA_MODE_DEVICE_AUTH:
+		okta_device_auth(st);
+		break;
+	default:
+		lwarnx("%s: unexpected st->mode %u", __func__, st->mode);
+		abort();
+		/* NOTREACHED */
 	}
-
-	if (jwt_decode(&jwt, response_string(res, "id_token"), NULL, 0) != 0)
-		lerrx(1, "jwt decode failed");
-
-	username = jwt_get_grant(jwt, "preferred_username");
-	if (username == NULL)
-		lerrx(1, "jwt grant is missing the username");
-
-	rv = strcasecmp(username, st->user_email);
-
-	linfo("auth for pid %d user %s got %s from okta, returning %s",
-	    st->cr.pid, authn_username(st), username,
-	    rv ? "failure" : "success");
-
-	pam_okta_reply(st, rv ? OKTA_CODE_FAILURE : OKTA_CODE_SUCCESS,
-	    NULL, 0);
 
 	return (0);
 }
