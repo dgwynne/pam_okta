@@ -877,6 +877,7 @@ okta_token_poll(struct state *st, const struct okta_token_poller *p)
 
 		diff = now - last;
 		if (diff < ival) {
+			diff += arc4random_uniform(NSECS / 2);
 			if (fdsleep(st, diff) != 0)
 				continue;
 		}
@@ -907,6 +908,13 @@ okta_token_poll(struct state *st, const struct okta_token_poller *p)
 			res = NULL;
 			break;
 		case 400:
+			if (strcmp(response_string(res, "error"),
+			    "slow_down") == 0) {
+				ival += NSECS / 10;
+				response_free(res);
+				res = NULL;
+				break;
+			}
 			if (strcmp(response_string(res, "error"),
 			    "authorization_pending") == 0) {
 				response_free(res);
