@@ -7,7 +7,11 @@ via Okta using the Device Authorization and Direct Authentication flows.
 Instead of having a PAM module communicate with the Okta API directly,
 this implementation connects to an `oktad` daemon over a Unix Domain
 Socket and has the daemon handle the API communication on the modules
-behalf. This has the following benefits:
+behalf. `oktad` runs persistently waiting for connections to the Unix
+Domain Socket it is listening on, and forks a handler for each connection
+to it.
+
+This has the following benefits:
 
 - the module can be kept simple enough to only need libc and libpam as
   dependencies
@@ -72,13 +76,28 @@ modules via the `SSH_CONNECTION` environment variable. `pam_okta` and
 name for enabling this special handling for testing purposes. In is
 generally not necessary to configure this in production.
 
-## Using `pam_okta`
+## Using `pam_okta` and `oktad`
+
+- create /var/run/okta 
+
+```
+$ sudo install -d -o root -g root -m 0700 /var/run/okta
+```
+
+- run the daemon
+
+```
+# sudo oktad
+```
+
+- systemd unit and selinux stuff (TODO)
+- add pam_okta to your pam stack
 
 ### OpenSSH
 
-`sshd` via `sshd_config` needs to be configured to use PAM with keyboard
-interactive authentication enabled to allow it to be prompted for MFA
-information by `pam_okta`. The relevant documentation is:
+`sshd` needs to be configured via `sshd_config` to use PAM with keyboard
+interactive authentication enabled. This allows allows the user to be be
+prompted for MFA by `pam_okta`. The relevant documentation is:
 
 ```
        UsePAM  Enables  the  Pluggable Authentication Module interface.  If set
