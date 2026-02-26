@@ -55,12 +55,6 @@ the daemon user.
 
 `socket=/path/to/uds/listener`, defaults to `/var/run/okta/sock`
 
-`sshd=servicename` - `sshd` has special handling to report the
-`SSH_CONNECTION` environment variable to `oktad` with the intention
-of reporting the remote IP address of the SSH connection to the Okta
-API. This allows the special sshd handling to be applied to a different
-service name for testing purposes.
-
 `mode=mfa-oob` directly authenticates users using their password and
 possibly out-of-band (OOB) as a second factor. This is the default mode.
 It follows the [Direct Authentication using the Okta Verify Push (MFA)](https://developer.okta.com/docs/guides/configure-direct-auth-grants/dmfaoobov/main/) flow.
@@ -70,6 +64,61 @@ Verify Push.
 It follows the [Direct Authentication using the Okta Verify Push (primary factor)](https://developer.okta.com/docs/guides/configure-direct-auth-grants/coobov/main/) flow.
 
 `mode=device` uses the [Device Authentication](https://developer.okta.com/docs/guides/device-authorization-grant/main/) flow to authenticate users.
+
+`sshd=servicename`: `sshd` reports the connection information to PAM
+modules via the `SSH_CONNECTION` environment variable. `pam_okta` and
+`oktad` use this to report the SSH client IP to the Okta API if the
+`PAM_SERVICE` is `sshd`. This setting specifies an alternate service
+name for enabling this special handling for testing purposes. In is
+generally not necessary to configure this in production.
+
+## Using `pam_okta`
+
+### OpenSSH
+
+`sshd` via `sshd_config` needs to be configured to use PAM with keyboard
+interactive authentication enabled to allow it to be prompted for MFA
+information by `pam_okta`. The relevant documentation is:
+
+```
+       UsePAM  Enables  the  Pluggable Authentication Module interface.  If set
+               to   yes   this   will   enable   PAM    authentication    using
+               KbdInteractiveAuthentication and PasswordAuthentication in addi‐
+               tion  to  PAM  account and session module processing for all au‐
+               thentication types.
+
+               Because PAM keyboard-interactive authentication  usually  serves
+               an  equivalent  role to password authentication, you should dis‐
+               able          either          PasswordAuthentication          or
+               KbdInteractiveAuthentication.
+
+               If  UsePAM  is enabled, you will not be able to run sshd(8) as a
+               non-root user.  The default is no.
+
+       KbdInteractiveAuthentication
+               Specifies whether to allow keyboard-interactive  authentication.
+               All authentication styles from login.conf(5) are supported.  The
+               default is yes.  The argument to this keyword must be yes or no.
+               ChallengeResponseAuthentication is a deprecated alias for this.
+
+       PAMServiceName
+               Specifies the service name  used  for  Pluggable  Authentication
+               Modules (PAM) authentication, authorisation and session controls
+               when UsePAM is enabled.  The default is sshd.
+```
+
+The suggested configuration is:
+
+```
+UsePAM yes
+KbdInteractiveAuthentication Yes
+```
+
+### SELinux
+
+TODO
+
+selinux blocks sshd from talking to /var/run/okta/sock by default.
 
 ## Building `oktad`
 
@@ -110,6 +159,16 @@ $ sudo install -m 0755 -o root -g root build/pam_okta.so /var/lib64/security
 
 ## Testing
 
+`pam-test-harness` from https://www.dtucker.net/patches/ is included in
+the repo to help hack on this code.
+
+```
+$ cd pam-test-harness
+$ meson setup build
+$ meson compile -C build
+$ sudo ./build/pam-test-harness -s oktatest
+```
+
 ```
 $ cat /etc/pam.d/oktatest 
 #%PAM-1.0
@@ -142,16 +201,6 @@ $ cd oktad
 $ # groupadd _oktad
 $ # useradd _oktad
 $ sudo ./build/oktad -d
-```
-
-`pam-test-harness` from https://www.dtucker.net/patches/ is included in
-the repo to help hack on this code.
-
-```
-$ cd pam-test-harness
-$ meson setup build
-$ meson compile -C build
-$ sudo ./build/pam-test-harness -s oktatest
 ```
 
 # Acknowledgements
