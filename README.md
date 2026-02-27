@@ -39,7 +39,7 @@ This has the following benefits:
 Put a file like this in `/etc/okta/pam_oktad.conf`:
 
 ```
-# user "okta-daemon" # user the daemon drops privs to, defaults to _oktad
+# user "okta-daemon" # defaults to _pam_oktad, user the daemon runs as
 # socket "/path/to/uds/listener" # defaults to /var/run/okta/sock
 host "something.okta.com"
 domain "example.com"
@@ -219,8 +219,8 @@ session    include      postlogin
 ```
 $ sudo install -d -m 0700 -o root -g root /var/run/okta
 $ cd pam_oktad
-$ # groupadd _oktad
-$ # useradd _oktad
+$ # groupadd _pam_oktad
+$ # useradd _pam_oktad
 $ sudo ./build/pam_oktad -d
 ```
 

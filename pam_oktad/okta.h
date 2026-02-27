@@ -18,7 +18,7 @@
 
 #define OKTAD_CONFFILE	"/etc/okta/pam_oktad.conf"
 
-#define OKTAD_USERNAME	"_oktad"
+#define OKTAD_USERNAME	"_pam_oktad"
 
 struct okta_config {
 	char		*user;
