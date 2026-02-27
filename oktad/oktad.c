@@ -216,7 +216,7 @@ sigchld(int sig)
  */
 
 #include <curl/curl.h>
-#include <json-c/json.h>
+#include <jansson.h>
 #include <jwt.h>
 #include <ctype.h>
 
@@ -281,7 +281,7 @@ struct response {
 	char			*data;
 	size_t			 datalen;
 	unsigned int		 status_code;
-	struct json_object	*json;
+	json_t			*json;
 };
 
 static size_t
@@ -407,6 +407,7 @@ request_exec(struct request *req, int64_t timeoutns)
 {
 	struct response *res;
 	CURL *curl = req->curl;
+	json_error_t error;
 	long status;
 
 	req->form[req->formlen] = '\0';
@@ -447,9 +448,9 @@ request_exec(struct request *req, int64_t timeoutns)
 
 	res->data = req->data;
 	res->datalen = req->datalen;
-	res->json = json_tokener_parse(res->data);
+	res->json = json_loads(res->data, 0, &error);
 	if (res->json == NULL)
-		lerrx(1, "unable to parse %s response", res->endpoint);
+		lerrx(1, "unable to parse %s response (line %d: %s)", res->endpoint, error.line, error.text);
 
 	curl_easy_cleanup(curl);
 	free(req->url);
@@ -463,44 +464,46 @@ request_exec(struct request *req, int64_t timeoutns)
 static const char *
 response_string(struct response *res, const char *key)
 {
-	struct json_object *v;
+	struct json_t *v;
 
-	if (json_object_object_get_ex(res->json, key, &v) == 0) {
+	v = json_object_get(res->json, key);
+	if (v == 0) {
 		lerrx(1, "%s response doesn't contain %s",
 		    res->endpoint, key);
 	}
 
-	if (!json_object_is_type(v, json_type_string)) {
+	if (!json_is_string(v)) {
 		lerrx(1, "%s response %s isn't a string",
 		    res->endpoint, key);
 	}
 
-	return json_object_get_string(v);
+	return json_string_value(v);
 }
 
 static int64_t
 response_int64(struct response *res, const char *key)
 {
-	struct json_object *v;
+	struct json_t *v;
 
-	if (json_object_object_get_ex(res->json, key, &v) == 0) {
+	v = json_object_get(res->json, key);
+	if (v == 0) {
 		lerrx(1, "%s response doesn't contain %s",
 		    res->endpoint, key);
 	}
 
-	if (!json_object_is_type(v, json_type_int)) {
+	if (!json_is_integer(v)) {
 		lerrx(1, "%s response %s isn't an integer",
 		    res->endpoint, key);
 	}
 
-	return json_object_get_int64(v);
+	return json_integer_value(v);
 }
 
 static void
 response_free(struct response *res)
 {
 	free(res->data);
-	json_object_put(res->json);
+	json_decref(res->json);
 	free(res);
 }
 

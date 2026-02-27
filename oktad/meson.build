@@ -11,7 +11,7 @@ parser = yacc_gen.process('parse.y')
 
 bsd_dep = dependency('libbsd', required: true)
 curl_dep = dependency('libcurl', required: true)
-json_dep = dependency('json-c', required: true)
+json_dep = dependency('jansson', required: true)
 jwt_dep = dependency('libjwt', required: true)
 
 executable(
