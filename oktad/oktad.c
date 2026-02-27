@@ -449,8 +449,10 @@ request_exec(struct request *req, int64_t timeoutns)
 	res->data = req->data;
 	res->datalen = req->datalen;
 	res->json = json_loads(res->data, 0, &error);
-	if (res->json == NULL)
-		lerrx(1, "unable to parse %s response (line %d: %s)", res->endpoint, error.line, error.text);
+	if (res->json == NULL) {
+		lerrx(1, "unable to parse %s response (line %d: %s)",
+		    res->endpoint, error.line, error.text);
+	}
 
 	curl_easy_cleanup(curl);
 	free(req->url);
