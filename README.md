@@ -146,7 +146,7 @@ selinux blocks sshd from talking to /var/run/okta/sock by default.
 - `byacc`
 - `libbsd-devel`
 - `libcurl-devel`
-- `json-c-devel`
+- `jansson-devel`
 - `jwt-devel`
 
 ```
