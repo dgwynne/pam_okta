@@ -884,7 +884,7 @@ okta_token_poll(struct state *st, const struct okta_token_poller *p)
 
 		last = now;
 
-		req = request_init(st, "/oauth2/default/v1/token");
+		req = request_init(st, "/oauth2/v1/token");
 
 		if (p->scope != NULL)
 			request_add_data(req, "scope", p->scope);
@@ -1053,7 +1053,7 @@ okta_mfa_oob_auth(struct state *st)
 		return;
 	}
 
-	req = request_init(st, "/oauth2/default/v1/token");
+	req = request_init(st, "/oauth2/v1/token");
 
 	request_add_data(req, "scope", okta_scopes);
 	request_add_data(req, "grant_type", "password");
@@ -1086,7 +1086,7 @@ okta_mfa_oob_auth(struct state *st)
 		goto res_error;
 	}
 
-	req = request_init(st, "/oauth2/default/v1/challenge");
+	req = request_init(st, "/oauth2/v1/challenge");
 
 	request_add_data(req, "mfa_token", response_string(res, "mfa_token"));
 	request_add_data(req, "channel_hint", "push");
@@ -1127,7 +1127,7 @@ okta_oob_auth(struct state *st)
 	struct request *req;
 	struct response *res;
 
-	req = request_init(st, "/oauth2/default/v1/primary-authenticate");
+	req = request_init(st, "/oauth2/v1/primary-authenticate");
 
 	request_add_data(req, "login_hint", authn_username(st));
 	request_add_data(req, "challenge_hint", okta_oob_poller.grant_type);
@@ -1162,7 +1162,7 @@ okta_device_auth(struct state *st)
 	char *prompt;
 	int rv;
 
-	req = request_init(st, "/oauth2/default/v1/device/authorize");
+	req = request_init(st, "/oauth2/v1/device/authorize");
 
 	request_add_data(req, "scope", okta_scopes);
 
