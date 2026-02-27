@@ -16,7 +16,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#define OKTAD_CONFFILE	"/etc/okta/oktad.conf"
+#define OKTAD_CONFFILE	"/etc/okta/pam_oktad.conf"
 
 #define OKTAD_USERNAME	"_oktad"
 

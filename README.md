@@ -36,7 +36,7 @@ This has the following benefits:
 
 ## `pam_oktad` configuration
 
-Put a file like this in `/etc/okta/oktad.conf`:
+Put a file like this in `/etc/okta/pam_oktad.conf`:
 
 ```
 # user "okta-daemon" # user the daemon drops privs to, defaults to _oktad
@@ -50,7 +50,7 @@ client_secret "YYY"
 The domain configuration is added to the authenticating username to
 create an "email" style identifier for the user.
 
-`/etc/okta` and `/etc/okta/oktad.conf` can be configured as only
+`/etc/okta` and `/etc/okta/pam_oktad.conf` can be configured as only
 accessible to the root user. The configuration file is opened by
 `pam_oktad` when it is running as root, and before it drops privileges
 to the daemon user.
