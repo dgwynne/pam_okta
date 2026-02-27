@@ -1016,10 +1016,10 @@ okta_oob_challenge(struct state *st, const struct okta_token_poller *p)
 	binding_method = response_string(res_poll, "binding_method");
 	if (strcmp(binding_method, "none") == 0) {
 		rv = asprintf(&prompt,
-		    "Push notification sent, press Enter to continue\n");
+		    "Push notification sent, press Enter to continue");
 	} else if (strcmp(binding_method, "transfer") == 0) {
 		rv = asprintf(&prompt,
-		    "Push code %s sent, press Enter to continue\n",
+		    "Push code %s sent, press Enter to continue",
 		    response_string(res_poll, "binding_code"));
 	} else {
 		lwarnx("unsupported binding method %s", binding_method);
@@ -1185,7 +1185,7 @@ okta_device_auth(struct state *st)
 
 	st->start_nsec = clock_read();
 
-	rv = asprintf(&prompt, "Log in at %s, then press Enter to continue\n",
+	rv = asprintf(&prompt, "Log in at %s, then press Enter to continue",
 	    response_string(res, "verification_uri_complete"));
 	if (rv == -1)
 		lerrx(1, "authorize prompt printf");
