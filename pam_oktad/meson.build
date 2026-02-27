@@ -1,4 +1,4 @@
-project('oktad', 'c')
+project('pam_oktad', 'c')
 
 yacc = find_program('yacc')
 yacc_gen = generator(
@@ -15,7 +15,7 @@ json_dep = dependency('jansson', required: true)
 jwt_dep = dependency('libjwt', required: true)
 
 executable(
-	'oktad',
+	'pam_oktad',
 	['oktad.c', 'log.c', parser],
 	dependencies: [ bsd_dep, curl_dep, json_dep, jwt_dep ],
 )

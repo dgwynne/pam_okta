@@ -1,13 +1,14 @@
 # Okta Authentication for Linux PAM
 
 This provides a `pam_okta` PAM module (Pluggable Authentication Modules
-module?) and a companion `oktad` daemon to support authenticating users
-via Okta using the Device Authorization and Direct Authentication flows.
+module?) and a companion `pam_oktad` daemon to support authenticating
+users via Okta using the Device Authorization and Direct Authentication
+flows.
 
 Instead of having a PAM module communicate with the Okta API directly,
-this implementation connects to an `oktad` daemon over a Unix Domain
+this implementation connects to an `pam_oktad` daemon over a Unix Domain
 Socket and has the daemon handle the API communication on the modules
-behalf. `oktad` runs persistently waiting for connections to the Unix
+behalf. `pam_oktad` runs persistently waiting for connections to the Unix
 Domain Socket it is listening on, and forks a handler for each connection
 to it.
 
@@ -22,17 +23,18 @@ This has the following benefits:
     and clean up
 - the module and therefore the authenticating process does not need
   access to the Okta client_id and client_secret
-- the `oktad` daemon forks a handler per `pam_okta` authentication request
+- the `pam_oktad` daemon forks a handler per `pam_okta` authentication
+  request
   - this isolates the authenticating process running `pam_okta` from
     the secrets needed to talk to the Okta API
-  - each oktad handler process is isolated to mitigate the leaking of
+  - each handler process is isolated to mitigate the leaking of
     user information and credentials between authenticating processes
-  - the oktad handler can simply exit if it encounters an error or
-    unexpected condition without affecting other users
-- the oktad process can (theoretically) be placed in a separate network
+  - the handler can simply exit if it encounters an error or unexpected
+    condition without affecting other users
+- the daemon can (theoretically) be placed in a separate network
   namespace, or firewalled separately to the users on the system
 
-## `oktad` configuration
+## `pam_oktad` configuration
 
 Put a file like this in `/etc/okta/oktad.conf`:
 
@@ -50,8 +52,8 @@ create an "email" style identifier for the user.
 
 `/etc/okta` and `/etc/okta/oktad.conf` can be configured as only
 accessible to the root user. The configuration file is opened by
-`oktad` when it is running as root, and before it drops privileges to
-the daemon user.
+`pam_oktad` when it is running as root, and before it drops privileges
+to the daemon user.
 
 ## `pam_okta` configuration
 
@@ -71,12 +73,12 @@ It follows the [Direct Authentication using the Okta Verify Push (primary factor
 
 `sshd=servicename`: `sshd` reports the connection information to PAM
 modules via the `SSH_CONNECTION` environment variable. `pam_okta` and
-`oktad` use this to report the SSH client IP to the Okta API if the
+`pam_oktad` use this to report the SSH client IP to the Okta API if the
 `PAM_SERVICE` is `sshd`. This setting specifies an alternate service
 name for enabling this special handling for testing purposes. In is
 generally not necessary to configure this in production.
 
-## Using `pam_okta` and `oktad`
+## Using `pam_okta` and `pam_oktad`
 
 - create /var/run/okta 
 
@@ -87,7 +89,7 @@ $ sudo install -d -o root -g root -m 0700 /var/run/okta
 - run the daemon
 
 ```
-# sudo oktad
+# sudo pam_oktad
 ```
 
 - systemd unit and selinux stuff (TODO)
@@ -139,9 +141,9 @@ TODO
 
 selinux blocks sshd from talking to /var/run/okta/sock by default.
 
-## Building `oktad`
+## Building `pam_oktad`
 
-`oktad` needs the following dependencies on RPMish systems:
+`pam_oktad` needs the following dependencies on RPMish systems:
 
 - `byacc`
 - `libbsd-devel`
@@ -150,7 +152,7 @@ selinux blocks sshd from talking to /var/run/okta/sock by default.
 - `jwt-devel`
 
 ```
-$ cd oktad
+$ cd pam_oktad
 $ meson setup build
 $ meson compile -C build
 ```
@@ -216,10 +218,10 @@ session    include      postlogin
 
 ```
 $ sudo install -d -m 0700 -o root -g root /var/run/okta
-$ cd oktad
+$ cd pam_oktad
 $ # groupadd _oktad
 $ # useradd _oktad
-$ sudo ./build/oktad -d
+$ sudo ./build/pam_oktad -d
 ```
 
 # Acknowledgements
