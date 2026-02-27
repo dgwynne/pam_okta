@@ -40,7 +40,7 @@ Put a file like this in `/etc/okta/pam_oktad.conf`:
 
 ```
 # user "okta-daemon" # defaults to _pam_oktad, user the daemon runs as
-# socket "/path/to/uds/listener" # defaults to /var/run/okta/sock
+# socket "/path/to/uds/listener" # defaults to /var/run/pam_okta/sock
 host "something.okta.com"
 domain "example.com"
 client_id "XXX"
@@ -59,7 +59,7 @@ to the daemon user.
 
 `pam_okta` supports the following arguments when used in a pam stack:
 
-`socket=/path/to/uds/listener`, defaults to `/var/run/okta/sock`
+`socket=/path/to/uds/listener`, defaults to `/var/run/pam_okta/sock`
 
 `mode=mfa-oob` directly authenticates users using their password and
 possibly out-of-band (OOB) as a second factor. This is the default mode.
@@ -80,10 +80,10 @@ generally not necessary to configure this in production.
 
 ## Using `pam_okta` and `pam_oktad`
 
-- create /var/run/okta 
+- create /var/run/pam_okta 
 
 ```
-$ sudo install -d -o root -g root -m 0700 /var/run/okta
+$ sudo install -d -o root -g root -m 0700 /var/run/pam_okta
 ```
 
 - run the daemon
@@ -139,7 +139,7 @@ KbdInteractiveAuthentication Yes
 
 TODO
 
-selinux blocks sshd from talking to /var/run/okta/sock by default.
+selinux blocks sshd from talking to /var/run/pam_okta/sock by default.
 
 ## Building `pam_oktad`
 
@@ -217,7 +217,7 @@ session    include      postlogin
 ```
 
 ```
-$ sudo install -d -m 0700 -o root -g root /var/run/okta
+$ sudo install -d -m 0700 -o root -g root /var/run/pam_okta
 $ cd pam_oktad
 $ # groupadd _pam_oktad
 $ # useradd _pam_oktad
