@@ -44,6 +44,7 @@
 #include <bsd/stdlib.h>
 
 #include "okta.h"
+#include "protocol.h"
 
 TAILQ_HEAD(files, file)		 files = TAILQ_HEAD_INITIALIZER(files);
 static struct file {
@@ -607,7 +608,7 @@ parse_config(const char *filename)
 	yyparse();
 
 	if (conf->sockname == NULL) {
-		conf->sockname = strdup(OKTAD_SOCKNAME);
+		conf->sockname = strdup(PAM_OKTA_SOCKNAME);
 		if (conf->sockname == NULL)
 			err(1, NULL);
 	}

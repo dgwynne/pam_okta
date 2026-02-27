@@ -19,7 +19,6 @@
 #define OKTAD_CONFFILE	"/etc/okta/oktad.conf"
 
 #define OKTAD_USERNAME	"_oktad"
-#define OKTAD_SOCKNAME	"/var/run/okta/sock"
 
 struct okta_config {
 	char		*user;

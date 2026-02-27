@@ -17,6 +17,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#define PAM_OKTA_SOCKNAME	"/var/run/okta/sock"
+
 #define CTL_T_AUTHN_REQ		0
 #define CTL_T_AUTHN_RES		1
 

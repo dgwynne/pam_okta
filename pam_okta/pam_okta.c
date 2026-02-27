@@ -434,7 +434,7 @@ pam_sm_authenticate(pam_handle_t *pamh, int flags, int argc, const char **argv)
 {
 	struct state _st = { /* c is annoying */
 		.pamh = pamh,
-		.sockname = "/var/run/okta/sock",
+		.sockname = PAM_OKTA_SOCKNAME,
 		.sshd = "sshd",
 		.mode = OKTA_MODE_MFA_OOB,
 	};
