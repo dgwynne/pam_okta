@@ -430,14 +430,6 @@ okta_loop(pam_handle_t *pamh, struct state *st, int s)
 }
 
 PAM_EXTERN int
-pam_sm_setcred(pam_handle_t *pamh, int flags, int argc, const char **argv)
-{
-	pam_syslog(pamh, LOG_DEBUG, "%s", __func__);
-
-	return (PAM_USER_UNKNOWN);
-}
-
-PAM_EXTERN int
 pam_sm_authenticate(pam_handle_t *pamh, int flags, int argc, const char **argv)
 {
 	struct state _st = { /* c is annoying */
@@ -470,6 +462,66 @@ pam_sm_authenticate(pam_handle_t *pamh, int flags, int argc, const char **argv)
 	} while (rv == PAM_INCOMPLETE);
 
 	close(s);
+
+	return (rv);
+}
+
+PAM_EXTERN int
+pam_sm_setcred(pam_handle_t *pamh, int flags,
+    int argc, const char **argv)
+{
+	int rv = PAM_SUCCESS;
+
+	pam_syslog(pamh, LOG_DEBUG,
+	    "%s: %s", __func__, pam_strerror(pamh, rv));
+
+	return (rv);
+}
+
+PAM_EXTERN int
+pam_sm_acct_mgmt(pam_handle_t *pamh, int flags,
+    int argc, const char *argv[])
+{
+	int rv = PAM_SUCCESS;
+
+	pam_syslog(pamh, LOG_DEBUG,
+	    "%s: %s", __func__, pam_strerror(pamh, rv));
+
+	return (rv);
+}
+
+PAM_EXTERN int
+pam_sm_open_session(pam_handle_t *pamh, int flags,
+    int argc, const char *argv[])
+{
+	int rv = PAM_SUCCESS;
+
+	pam_syslog(pamh, LOG_DEBUG,
+	    "%s: %s", __func__, pam_strerror(pamh, rv));
+
+	return (rv);
+}
+
+PAM_EXTERN int
+pam_sm_close_session(pam_handle_t *pamh, int flags,
+    int argc, const char **argv)
+{
+	int rv = PAM_SUCCESS;
+
+	pam_syslog(pamh, LOG_DEBUG,
+	    "%s: %s", __func__, pam_strerror(pamh, rv));
+
+	return (rv);
+}
+
+PAM_EXTERN int
+pam_sm_chauthtok(pam_handle_t *pamh, int flags,
+    int argc, const char *argv[])
+{
+	int rv = PAM_SERVICE_ERR;
+
+	pam_syslog(pamh, LOG_DEBUG,
+	    "%s: %s", __func__, pam_strerror(pamh, rv));
 
 	return (rv);
 }
