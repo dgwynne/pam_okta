@@ -92,6 +92,11 @@ parse_args(struct state *st, int argc, const char **argv)
 			st->mode = OKTA_MODE_DEVICE_AUTH;
 		} else if (strncmp(argv[i], sockopt, SOCKOPTLEN) == 0) {
 			st->sockname = argv[i] + SOCKOPTLEN;
+			if (st->sockname[0] != '/') {
+				pam_syslog(st->pamh, LOG_ERR,
+				    "socket name must be an absolute path");
+				return (-1);
+			}
 		} else if (strncmp(argv[i], sshdopt, SSHDOPTLEN) == 0) {
 			st->sshd = argv[i] + SSHDOPTLEN;
 		} else {
