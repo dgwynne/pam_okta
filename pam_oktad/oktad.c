@@ -316,6 +316,7 @@ request_add_header(struct request *req, const char *h)
 static struct request *
 request_init(struct state *st, const char *endpoint)
 {
+	const struct okta_config *conf = st->conf;
 	struct request *req;
 	CURL *curl;
 	int rv;
@@ -328,7 +329,11 @@ request_init(struct state *st, const char *endpoint)
 	if (curl == NULL)
 		lerrx(1, "%s curl_easy_init failed", endpoint);
 
-	rv = asprintf(&req->url, "https://%s%s", st->conf->host, endpoint);
+	rv = asprintf(&req->url, "https://%s/oauth2%s%s/v1/%s",
+	    conf->host,
+	    conf->authserver == NULL ? "" : "/",
+	    conf->authserver == NULL ? "" : conf->authserver,
+	    endpoint);
 	if (rv == -1)
 		lerrx(1, "%s url init", endpoint);
 
@@ -889,7 +894,7 @@ okta_token_poll(struct state *st, const struct okta_token_poller *p)
 
 		last = now;
 
-		req = request_init(st, "/oauth2/v1/token");
+		req = request_init(st, "token");
 
 		if (p->scope != NULL)
 			request_add_data(req, "scope", p->scope);
@@ -1058,7 +1063,7 @@ okta_mfa_oob_auth(struct state *st)
 		return;
 	}
 
-	req = request_init(st, "/oauth2/v1/token");
+	req = request_init(st, "token");
 
 	request_add_data(req, "scope", okta_scopes);
 	request_add_data(req, "grant_type", "password");
@@ -1091,7 +1096,7 @@ okta_mfa_oob_auth(struct state *st)
 		goto res_error;
 	}
 
-	req = request_init(st, "/oauth2/v1/challenge");
+	req = request_init(st, "challenge");
 
 	request_add_data(req, "mfa_token", response_string(res, "mfa_token"));
 	request_add_data(req, "channel_hint", "push");
@@ -1132,7 +1137,7 @@ okta_oob_auth(struct state *st)
 	struct request *req;
 	struct response *res;
 
-	req = request_init(st, "/oauth2/v1/primary-authenticate");
+	req = request_init(st, "primary-authenticate");
 
 	request_add_data(req, "login_hint", authn_username(st));
 	request_add_data(req, "challenge_hint", okta_oob_poller.grant_type);
@@ -1167,7 +1172,7 @@ okta_device_auth(struct state *st)
 	char *prompt;
 	int rv;
 
-	req = request_init(st, "/oauth2/v1/device/authorize");
+	req = request_init(st, "device/authorize");
 
 	request_add_data(req, "scope", okta_scopes);
 

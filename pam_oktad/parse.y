@@ -98,6 +98,7 @@ typedef struct {
 %}
 
 %token	SOCKET HOST DOMAIN CLIENT_ID CLIENT_SECRET USER
+%token	AUTHORIZATION SERVER ID
 %token	INCLUDE
 %token	ERROR
 %token	<v.string>		STRING
@@ -112,6 +113,7 @@ grammar		: /* empty */
 		| grammar varset '\n'
 		| grammar socket '\n'
 		| grammar host '\n'
+		| grammar authserver '\n'
 		| grammar domain '\n'
 		| grammar client_id '\n'
 		| grammar client_secret '\n'
@@ -194,6 +196,42 @@ host		: HOST string {
 		}
 		;
 
+authserver	: AUTHORIZATION SERVER ID string {
+			char *p;
+			int ch;
+
+			if (conf->authserver != NULL) {
+				yyerror("authorisation server id "
+				    "is already configured");
+				free($4);
+				YYERROR;
+			}
+
+			conf->authserver = $4;
+
+			p = conf->authserver;
+			ch = *p++;
+			if (ch == '\0') {
+				yyerror("authorisation server id is short");
+				YYERROR;
+			}
+
+			do {
+				switch (ch) {
+				case '-':
+				case '_':
+				default:
+					if (isalnum(ch))
+						break;
+
+					yyerror("authorisation server id "
+					    "has weird characters");
+					YYERROR;
+				}
+			} while ((ch = *p++) != '\0');
+		}
+		;
+
 domain		: DOMAIN string {
 			if (conf->domain != NULL) {
 				yyerror("domain is already configured");
@@ -269,10 +307,13 @@ lookup(char *s)
 {
 	/* this has to be sorted always */
 	static const struct keywords keywords[] = {
+		{ "authorization",	AUTHORIZATION },
 		{ "client_id",		CLIENT_ID },
 		{ "client_secret",	CLIENT_SECRET },
 		{ "domain",		DOMAIN },
 		{ "host",		HOST },
+		{ "id",			ID },
+		{ "server",		SERVER },
 		{ "socket",		SOCKET },
 		{ "user",		USER },
 	};
@@ -724,6 +765,7 @@ clear_config(struct okta_config *c)
 	free(c->user);
 	free(c->sockname);
 	free(c->host);
+	free(c->authserver);
 	free(c->domain);
 	free(c->client_id);
 	free(c->client_secret);
@@ -738,6 +780,8 @@ dump_config(const struct okta_config *c)
 	printf("socket \"%s\"\n", c->sockname);
 	printf("\n");
 	printf("host \"%s\"\n", c->host);
+	if (c->authserver != NULL)
+		printf("authorization server id \"%s\"\n", c->authserver);
 	printf("domain \"%s\"\n", c->domain);
 	printf("client_id \"%s\"\n", c->client_id);
 	printf("client_secret \"%s\"\n", c->client_secret);
