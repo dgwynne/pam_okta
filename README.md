@@ -43,6 +43,7 @@ Put a file like this in `/etc/okta/pam_oktad.conf`:
 # socket "/path/to/uds/listener" # defaults to /var/run/pam_okta/sock
 host "something.okta.com"
 domain "example.com"
+# authorization server id "default" # optional, unused if not set
 client_id "XXX"
 client_secret "YYY"
 ```
