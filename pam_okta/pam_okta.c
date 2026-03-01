@@ -227,7 +227,7 @@ okta_connect(struct state *st)
 	socknamelen = strlen(st->sockname);
 	if (socknamelen >= sizeof(sun.sun_path)) {
 		pam_syslog(st->pamh, LOG_ERR,
-		    "okta socket name is too long");
+		    "pam_oktad socket name is too long");
 		return (-1);
 	}
 
