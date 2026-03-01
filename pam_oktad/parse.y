@@ -222,6 +222,7 @@ authserver	: AUTHORIZATION SERVER ID string {
 				switch (ch) {
 				case '-':
 				case '_':
+					break;
 				default:
 					if (isalnum(ch))
 						break;
