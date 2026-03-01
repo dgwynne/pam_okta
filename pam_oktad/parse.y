@@ -182,6 +182,8 @@ socket		: SOCKET string {
 			}
 
 			conf->sockname = $2;
+			if (conf->sockname[0] != '/')
+				yyerror("socket name must be an absolute path");
 		}
 		;
 
