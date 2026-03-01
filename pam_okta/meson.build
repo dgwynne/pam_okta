@@ -1,5 +1,3 @@
-project('pam_okta', 'c')
-
 cc = meson.get_compiler('c')
 pam_dep = cc.find_library('pam', required: true)
 

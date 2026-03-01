@@ -1,5 +1,3 @@
-project('pam_oktad', 'c')
-
 yacc = find_program('yacc')
 yacc_gen = generator(
 	yacc,

@@ -142,7 +142,11 @@ TODO
 
 selinux blocks sshd from talking to /var/run/pam_okta/sock by default.
 
-## Building `pam_oktad`
+## Building
+
+`pam_okta` needs the following dependencies on RPMish systems:
+
+- `pam-devel`
 
 `pam_oktad` needs the following dependencies on RPMish systems:
 
@@ -153,19 +157,6 @@ selinux blocks sshd from talking to /var/run/pam_okta/sock by default.
 - `jwt-devel`
 
 ```
-$ cd pam_oktad
-$ meson setup build
-$ meson compile -C build
-```
-
-## Building `pam_okta`
-
-`pam_okta` needs the following dependencies on RPMish systems:
-
-- `pam-devel`
-
-```
-$ cd pam_okta
 $ meson setup build
 $ meson compile -C build
 ```
@@ -175,8 +166,7 @@ $ meson compile -C build
 TODO
 
 ```
-$ cd pam_okta
-$ sudo install -m 0755 -o root -g root build/pam_okta.so /var/lib64/security
+$ sudo install -m 0755 -o root -g root build/pam_okta/pam_okta.so /var/lib64/security
 ```
 
 ## Testing
@@ -219,10 +209,9 @@ session    include      postlogin
 
 ```
 $ sudo install -d -m 0700 -o root -g root /var/run/pam_okta
-$ cd pam_oktad
 $ # groupadd _pam_oktad
 $ # useradd _pam_oktad
-$ sudo ./build/pam_oktad -d
+$ sudo ./build/pam_oktad/pam_oktad -
 ```
 
 # Acknowledgements
