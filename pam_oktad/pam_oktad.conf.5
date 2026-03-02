@@ -1,0 +1,88 @@
+.\"
+.\" Copyright (c) 2026 The University of Queensland
+.\"
+.\" Permission to use, copy, modify, and distribute this software for any
+.\" purpose with or without fee is hereby granted, provided that the above
+.\" copyright notice and this permission notice appear in all copies.
+.\"
+.\" THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+.\" WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+.\" MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+.\" ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+.\" WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+.\" ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+.\" OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+.\"
+.Dd $Mdocdate: July 16 2013 $
+.Dt PAM_OKTAD.CONF 5
+.Os
+.Sh NAME
+.Nm pam_oktad.conf
+.Nd pam_oktad configuration file
+.Sh SYNOPSIS
+.Nm pam_oktad.conf
+.Sh DESCRIPTION
+The
+.Xr pam_oktad 8
+daemon supports the
+.Xr pam_okta 8
+module when it authenticates a user against the Okta API.
+The
+.Nm
+file configures the
+.Xr pam_oktad 8
+daemon for connections from the
+.Xr pam_okta 8
+module,
+and the parameters used for communicating with the
+Okta API.
+.Pp
+.Nm
+supports the following configuration settings:
+.Pp
+.Bl -tag -width Ds
+.It Ic client_id Ar CLIENTID
+The
+.Ic client_id
+used to authenticate Client requests against the Okta API.
+.It Ic client_secret Ar CLIENTSECRET
+The
+.Ic client_secret
+used to authenticate Client requests against the Okta API.
+.It Ic host Ar HOST
+The Okta API host.
+.It Ic domain Ar DOMAIN
+The domain added to usernames requesting authentication from
+.Xr pam_okta 8
+to produce an email style user id for use with the Okta API.
+.It Ic authorization Ic server Ic id Ar AUTHSERVER
+The Okta Authorization Server to request authentication against.
+This setting is optional.
+.It Ic user Ar USERNAME
+Specifies which local user the daemon should drop privileges to after
+reading the configuration file.
+The default
+.Ic user
+is
+.Va _pam_oktad .
+.It Ic socket Ar SOCKNAME
+Specifies the name of the Unix Domain Socket that
+.Xr pam_oktad 8
+will bind.
+The default
+.Ic socket
+path is
+.Pa /var/run/pam_okta/sock .
+.El
+.Sh FILES
+.Bl -tag -width indent
+.It Pa /etc/okta/pam_oktad.conf
+Default
+.Xr pam_oktad 8
+configuration file.
+.El
+.Sh SEE ALSO
+.Xr pam_okta 8 ,
+.Xr pam_oktad 8
+.\" .Sh AUTHORS
+.\" .An David Gwynne Aq Mt dlg@uq.edu.au
