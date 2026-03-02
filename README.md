@@ -81,6 +81,18 @@ generally not necessary to configure this in production.
 
 ## Using `pam_okta` and `pam_oktad`
 
+- Install dependencies
+
+`pam_okta` only uses libc and libpam, which are almost certainly already
+installed.
+
+`pam_oktad` has the following runtime dependencies:
+
+  - `libbsd`
+  - `libcurl`
+  - `jansson`
+  - `libjwt`
+
 - create /var/run/pam_okta 
 
 ```
@@ -213,6 +225,10 @@ $ # groupadd _pam_oktad
 $ # useradd _pam_oktad
 $ sudo ./build/pam_oktad/pam_oktad -
 ```
+
+# Todo
+
+- use "direct" auth as a fallback option for "mfa-oob" and "oob" auth
 
 # Acknowledgements
 
