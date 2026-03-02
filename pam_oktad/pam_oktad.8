@@ -1,0 +1,85 @@
+.\"
+.\" Copyright (c) 2026 The University of Queensland
+.\"
+.\" Permission to use, copy, modify, and distribute this software for any
+.\" purpose with or without fee is hereby granted, provided that the above
+.\" copyright notice and this permission notice appear in all copies.
+.\"
+.\" THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+.\" WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+.\" MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+.\" ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+.\" WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+.\" ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+.\" OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+.\"
+.Dd $Mdocdate: July 16 2013 $
+.Dt PAM_OKTAD 8
+.Os
+.Sh NAME
+.Nm pam_oktad
+.Nd Daemon supporting PAM authentication against Okta
+.Sh SYNOPSIS
+.Nm pam_oktad
+.Bk -words
+.Op Fl dn
+.Op Fl D Ar macro Ns = Ns Ar value
+.Op Fl f Ar config_file
+.Ek
+.Sh DESCRIPTION
+The
+.Nm
+daemon supports the
+.Xr pam_okta 8
+module when it authenticates a user against the Okta API.
+.Pp
+Instead of the
+.Xr pam_okta 8
+module connecting to the Okta API directly, instead it connects to this
+.Nm
+daemon which handles the communication with Okta on the modules behalf.
+.Pp
+The options are as follows:
+.Bl -tag -width Ds
+.It Fl d
+Do not daemonise.
+If this option is specified,
+.Nm
+will run in the foreground and log to
+.Em stderr .
+.It Fl D Ar macro Ns = Ns Ar value
+Define
+.Ar macro
+to be set to
+.Ar value
+on the command line.
+Overrides the definition of
+.Ar macro
+in the configuration file.
+.It Fl f Ar config_file
+Use
+.Ar config_file
+as the configuration file.
+The default configuration file is
+.Pa /etc/okta/pam_oktad.conf .
+.It Fl n
+Configtest mode.
+Only check the configuration file for valid syntax.
+.El
+.Sh FILES
+.Bl -tag -width indent
+.It Pa /etc/okta/pam_oktad.conf
+Default
+.Nm
+configuration file.
+.It Pa /var/run/pam_okta/sock
+Default path to the Unix Domain Socket that
+.Nm
+listens on for connections from
+.Xr pam_okta 8 .
+.El
+.Sh SEE ALSO
+.Xr pam_oktad.conf 5 ,
+.Xr pam_okta 8
+.\" .Sh AUTHORS
+.\" .An David Gwynne Aq Mt dlg@uq.edu.au
