@@ -82,12 +82,9 @@ generally not necessary to configure this in production.
 ## Using `pam_okta` and `pam_oktad`
 
 - Install dependencies
-
-`pam_okta` only uses libc and libpam, which are almost certainly already
-installed.
-
-`pam_oktad` has the following runtime dependencies:
-
+  `pam_okta` only uses libc and libpam, which are almost certainly already
+  installed.
+  `pam_oktad` has the following runtime dependencies:
   - `libbsd`
   - `libcurl`
   - `jansson`
