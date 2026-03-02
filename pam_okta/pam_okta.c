@@ -112,11 +112,12 @@ parse_args(struct state *st, int argc, const char **argv)
 static int
 okta_authn_password(pam_handle_t *pamh, struct state *st)
 {
+	char *pass;
+	const void *item;
 	int rv;
 
-	if (st->first_pass == CFG_FIRST_PASS_UNSET) {
-		char *pass;
-
+	switch (st->first_pass) {
+	case CFG_FIRST_PASS_UNSET:
 		rv = pam_prompt(pamh, PAM_PROMPT_ECHO_OFF,
 		    &pass, "Password: ");
 		if (rv != PAM_SUCCESS) {
@@ -139,14 +140,31 @@ okta_authn_password(pam_handle_t *pamh, struct state *st)
 			    "set authtok: %s", pam_strerror(pamh, rv));
 			return (rv);
 		}
+
+		/* FALLTHROUGH */
+	case CFG_FIRST_PASS_USE:
+		rv = pam_get_item(pamh, PAM_AUTHTOK, &item);
+		if (rv != PAM_SUCCESS) {
+			pam_syslog(pamh, LOG_ERR,
+			    "get authtok: %s", pam_strerror(pamh, rv));
+			return (rv);
+		}
+		st->pass = item;
+		break;
+
+	case CFG_FIRST_PASS_TRY:
+		rv = pam_get_authtok(pamh, PAM_AUTHTOK, &st->pass, NULL);
+		if (rv != PAM_SUCCESS) {
+			pam_syslog(pamh, LOG_ERR,
+			    "get authtok: %s", pam_strerror(pamh, rv));
+			return (rv);
+		}
+		break;
+	default:
+		abort();
+		/* NOTREACHED */
 	}
 
-	rv = pam_get_authtok(pamh, PAM_AUTHTOK, &st->pass, NULL);
-	if (rv != PAM_SUCCESS) {
-		pam_syslog(pamh, LOG_ERR,
-		    "get authtok: %s", pam_strerror(pamh, rv));
-		return (rv);
-	}
 	if (st->pass == NULL) {
 		rv = PAM_BAD_ITEM;
 		pam_syslog(pamh, LOG_ERR,
