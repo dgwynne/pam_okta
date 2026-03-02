@@ -27,9 +27,9 @@ This has the following benefits:
   request
   - this isolates the authenticating process running `pam_okta` from
     the secrets needed to talk to the Okta API
-  - each handler process is isolated to mitigate the leaking of
+  - each handler process is isolated to mitigate against the leaking of
     user information and credentials between authenticating processes
-  - the handler can simply exit if it encounters an error or unexpected
+  - a handler can exit if it encounters an error or unexpected
     condition without affecting other users
 - the daemon can (theoretically) be placed in a separate network
   namespace, or firewalled separately to the users on the system
