@@ -5,5 +5,7 @@ shared_library(
 	'pam_okta',
 	['pam_okta.c'],
 	name_prefix: '',
-	dependencies: pam_dep
+	dependencies: pam_dep,
+	install: true,
+	install_dir: get_option('libdir') / 'security'
 )

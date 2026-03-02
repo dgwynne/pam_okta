@@ -16,4 +16,6 @@ executable(
 	'pam_oktad',
 	['oktad.c', 'log.c', parser],
 	dependencies: [ bsd_dep, curl_dep, json_dep, jwt_dep ],
+	install: true,
+	install_dir: get_option('sbindir'),
 )
