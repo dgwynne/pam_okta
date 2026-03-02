@@ -1,0 +1,118 @@
+.\"
+.\" Copyright (c) 2026 The University of Queensland
+.\"
+.\" Permission to use, copy, modify, and distribute this software for any
+.\" purpose with or without fee is hereby granted, provided that the above
+.\" copyright notice and this permission notice appear in all copies.
+.\"
+.\" THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+.\" WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+.\" MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+.\" ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+.\" WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+.\" ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+.\" OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+.\"
+.Dd $Mdocdate: July 16 2013 $
+.Dt PAM_OKTA 8
+.Os
+.Sh NAME
+.Nm pam_okta
+.Nd Module for using Okta for authentication
+.Sh SYNOPSIS
+.Nm
+.Op Ar ...
+.Sh DESCRIPTION
+This authentication module authenticates users against the Okta API.
+.Pp
+Rather than the
+.Nm
+module talking directly to the Okta API, it connects to a
+.Xr pam_oktad 8
+daemon that communicates on the modules behalf.
+.Sh OPTIONS
+.Bl -tag -width indent
+.It Cm mode Ns = Ns Ar authmode
+Specifies which Okta authentication flow to use.
+The supported modes are:
+.Bl -inset
+.It Cm mfa-oob
+Authenticate the user with their password, and depending on the Okta
+service configuration, an out-of-band (OOB) push factor.
+It follows the Direct Authentication using the Okta Verify Push (MFA)
+flow.
+This is the default mode.
+.It Cm oob
+Authenticate the user with an out-of-band (OOB) push factor.
+It follows the Direct Authentication using the Okta Verify Push
+(primary factor) flow.
+This mode does not verify the users password.
+If password authentication is required, a preceding module in the stack
+must check it, or use the
+.Cm mfa-oob
+mode.
+.It Cm device
+Use the Device Authentication flow to authenticate the user.
+This mode does not verify the users password.
+If password authentication is required, a preceding module in the stack
+must check it.
+.El
+.It Cm socket Ns = Ns Ar sockname
+Specify the path of the Unix Domain Socket that the
+.Xr pam_oktad 8
+daemon is listening on for authentication requests from this module.
+The default
+.Ar sockname
+is
+.Va /var/run/pam_okta/sock .
+.It Cm debug
+Enable extra debug logging.
+.It Cm no_warn
+Disable warnings when possible.
+.It Cm try_first_pass
+The module will try and use an existing password before prompting the user.
+This is only used when the
+.Cm mode
+is
+.Cm mfa-oob .
+.It Cm use_first_pass
+The module will try and use an existing password.
+If no password is available or is not appropriate, authentication will fail.
+This is only used when the
+.Cm mode
+is
+.Cm mfa-oob .
+.It Cm sshd Ns = Ns Ar servicename
+.Nm
+sends the
+.Ev SSH_CONNECTION
+environment variable to
+.Xr pam_oktad 8
+if the PAM service attempting authentication is
+.Va sshd .
+The
+.Cm sshd
+option enables this behaviour for an alternative PAM service name.
+The default value is
+.Va sshd .
+.El
+.Sh MODULE TYPES PROVIDED
+.Nm
+only provides
+auth.
+.Sh EXAMPLES
+An example usage for /etc/pam.d/login would be:
+.Bd -literal -offset indent
+# Authenticate the user
+auth       required   pam_okta.so mode=mfa-oob
+# Ensure user's account and password are still active
+account    required   pam_unix.so
+.Ed
+.Sh SEE ALSO
+.Xr login.defs 5 ,
+.Xr pam.conf 5 ,
+.Xr pam.d 5 ,
+.Xr pam_oktad 8 ,
+.Xr pam 8
+.\" .Sh AUTHOR
+.\" pam_unix was written by various people.
