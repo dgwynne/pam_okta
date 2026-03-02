@@ -696,6 +696,13 @@ pam_okta_handler_req(struct state *st, char *buf, size_t buflen)
 			len -= f->len;
 		}
 	}
+
+#if 0
+	for (i = 0; i < nitems(st->authn_fields); i++) {
+		struct authn_field *f = &st->authn_fields[i];
+		linfo("%s: %s", authn_field_names[i], f->str);
+	}
+#endif
 }
 
 static void
