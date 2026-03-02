@@ -166,7 +166,7 @@ $ meson compile -C build
 TODO
 
 ```
-$ sudo install -m 0755 -o root -g root build/pam_okta/pam_okta.so /var/lib64/security
+$ sudo install -m 0755 -o root -g root build/pam_okta/pam_okta.so /lib64/security
 ```
 
 ## Testing
