@@ -19,3 +19,5 @@ executable(
 	install: true,
 	install_dir: get_option('sbindir'),
 )
+
+install_man(['pam_oktad.8', 'pam_oktad.conf.5'])

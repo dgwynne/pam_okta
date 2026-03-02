@@ -9,3 +9,5 @@ shared_library(
 	install: true,
 	install_dir: get_option('libdir') / 'security'
 )
+
+install_man('pam_okta.8')
