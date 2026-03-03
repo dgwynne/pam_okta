@@ -94,7 +94,9 @@ generally not necessary to configure this in production.
 - create /var/run/pam_okta 
 
 ```
-$ sudo install -d -o root -g root -m 0700 /var/run/pam_okta
+$ sudo install -d -o root -g root -m 0700 \
+	--context=system_u:object_r:var_auth_t:s0 \
+	/var/run/pam_okta
 ```
 
 - run the daemon
@@ -219,7 +221,9 @@ session    include      postlogin
 ```
 
 ```
-$ sudo install -d -m 0700 -o root -g root /var/run/pam_okta
+$ sudo install -d -o root -g root -m 0700 \
+	--context=system_u:object_r:var_auth_t:s0 \
+	/var/run/pam_okta
 $ # groupadd _pam_oktad
 $ # useradd _pam_oktad
 $ sudo ./build/pam_oktad/pam_oktad -
