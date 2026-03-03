@@ -105,7 +105,6 @@ $ sudo install -d -o root -g root -m 0700 \
 # sudo pam_oktad
 ```
 
-- systemd unit and selinux stuff (TODO)
 - add pam_okta to your pam stack
 
 ### OpenSSH
@@ -150,9 +149,9 @@ KbdInteractiveAuthentication Yes
 
 ### SELinux
 
-TODO
-
 selinux blocks sshd from talking to /var/run/pam_okta/sock by default.
+Labelling that directory with system_u:object_r:var_auth_t:s0 allows
+access to it.
 
 ## Building
 
