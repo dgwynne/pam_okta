@@ -80,7 +80,7 @@ main(int argc, char **argv)
 	if (progname == NULL)
 		progname = "pam_oktad";
 
-	while ((ch = getopt(argc, argv, "df:n")) != -1) {
+	while ((ch = getopt(argc, argv, "df:nS")) != -1) {
 		switch (ch) {
 		case 'd':
 			supervised = debug = 1;
