@@ -16,8 +16,9 @@ progname = 'pam_oktad'
 sbindir = get_option('sbindir')
 
 conf = configuration_data()
-conf.set('program_name', progname)
+conf.set('prefix', get_option('prefix'))
 conf.set('sbindir', sbindir)
+conf.set('progname', progname)
 
 executable(
 	progname,
