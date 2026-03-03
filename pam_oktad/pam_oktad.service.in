@@ -1,0 +1,14 @@
+[Unit]
+Description=Okta PAM daemon
+Documentation=man:pam_oktad(8)
+After=network.target
+
+[Service]
+Type=exec
+ExecStart=@sbindir@/@program_name@ -S
+KillMode=process
+Restart=on-failure
+RestartSec=41s
+
+[Install]
+WantedBy=multi-user.target

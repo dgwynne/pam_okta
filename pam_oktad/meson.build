@@ -12,12 +12,32 @@ curl_dep = dependency('libcurl', required: true)
 json_dep = dependency('jansson', required: true)
 jwt_dep = dependency('libjwt', required: true)
 
+progname = 'pam_oktad'
+sbindir = get_option('sbindir')
+
+conf = configuration_data()
+conf.set('program_name', progname)
+conf.set('sbindir', sbindir)
+
 executable(
-	'pam_oktad',
+	progname,
 	['oktad.c', 'log.c', parser],
 	dependencies: [ bsd_dep, curl_dep, json_dep, jwt_dep ],
 	install: true,
-	install_dir: get_option('sbindir'),
+	install_dir: sbindir,
+)
+
+systemd = dependency('systemd')
+
+unit_file = configure_file(
+	input: 'pam_oktad.service.in',
+	output: 'pam_oktad.service',
+	configuration: conf,
+)
+
+install_data(
+	unit_file,
+	install_dir: systemd.get_variable(pkgconfig: 'systemdsystemunitdir'),
 )
 
 install_man(['pam_oktad.8', 'pam_oktad.conf.5'])

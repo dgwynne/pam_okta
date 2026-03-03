@@ -52,12 +52,12 @@ static int		socket_open(const char *);
 static int		pam_okta_handler(int, const struct okta_config *);
 static void		sigchld(int);
 
+const char		*progname;
+
 __dead static void
 usage(void)
 {
-	const char *progname = getprogname();
-
-	fprintf(stderr, "usage: %s [-dn] [-f okta.conf]\n",
+	fprintf(stderr, "usage: %s [-dnS] [-f okta.conf]\n",
 	    progname);
 
 	exit(1);
@@ -68,6 +68,7 @@ main(int argc, char **argv)
 {
 	const char *conffile = OKTAD_CONFFILE;
 	int confcheck = 0;
+	int supervised = 0;
 	int debug = 0;
 	int ch;
 
@@ -75,10 +76,14 @@ main(int argc, char **argv)
 	struct passwd *pw;
 	int s;
 
+	progname = getprogname();
+	if (progname == NULL)
+		progname = "pam_oktad";
+
 	while ((ch = getopt(argc, argv, "df:n")) != -1) {
 		switch (ch) {
 		case 'd':
-			debug = 1;
+			supervised = debug = 1;
 			break;
 		case 'D':
 			if (cmdline_symset(optarg) < 0) {
@@ -91,6 +96,9 @@ main(int argc, char **argv)
 			break;
 		case 'n':
 			confcheck = 1;
+			break;
+		case 'S':
+			supervised = 1;
 			break;
 		default:
 			usage();
@@ -123,12 +131,15 @@ main(int argc, char **argv)
 
 	s = socket_open(conf->sockname);
 
+	if (!debug)
+		logger_syslog(progname);
+
 	if (setgroups(1, &pw->pw_gid) ||
 	    setresgid(pw->pw_gid, pw->pw_gid, pw->pw_gid) ||
 	    setresuid(pw->pw_uid, pw->pw_uid, pw->pw_uid))
 		err(1, "unable to revoke privs");
 
-	if (!debug && daemon(0, 0) == -1)
+	if (!supervised && daemon(0, 0) == -1)
 		err(1, "daemon");
 
 	signal(SIGCHLD, sigchld);
@@ -1078,6 +1089,7 @@ okta_mfa_oob_auth(struct state *st)
 	request_add_data(req, "password", authn_password(st));
 
 	res = st->res_mfa = request_exec(req, 0);
+linfo("%s %u %s", res->endpoint, res->status_code, res->data);
 	switch (res->status_code) {
 	case 200:
 		/* password auth succeeded */
