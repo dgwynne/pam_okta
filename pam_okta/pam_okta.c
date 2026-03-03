@@ -41,7 +41,7 @@
 
 struct state {
 	pam_handle_t	*pamh;
-	unsigned int	 flags;
+	unsigned int	 pamflags;
 #define CFG_F_DEBUG		(1 << 0)
 #define CFG_F_NO_WARN		(1 << 1)
 	unsigned int	 first_pass;
@@ -49,6 +49,7 @@ struct state {
 #define CFG_FIRST_PASS_USE	1
 #define CFG_FIRST_PASS_TRY	2
 	unsigned int	 mode;
+	unsigned int	 flags;
 
 	const char	*sockname;
 	const char	*sshd; /* which service provides SSH_CONNECTION env */
@@ -77,9 +78,9 @@ parse_args(struct state *st, int argc, const char **argv)
 
 	for (i = 0; i < argc; i++) {
 		if (strcmp(argv[i], "debug") == 0) {
-			st->flags |= CFG_F_DEBUG;
+			st->pamflags |= CFG_F_DEBUG;
 		} else if (strcmp(argv[i], "no_warn") == 0) {
-			st->flags |= CFG_F_NO_WARN;
+			st->pamflags |= CFG_F_NO_WARN;
 		} else if (strcmp(argv[i], "use_first_pass") == 0) {
 			st->first_pass = CFG_FIRST_PASS_USE;
 		} else if (strcmp(argv[i], "try_first_pass") == 0) {
@@ -90,6 +91,8 @@ parse_args(struct state *st, int argc, const char **argv)
 			st->mode = OKTA_MODE_OOB;
 		} else if (strcmp(argv[i], "mode=device") == 0) {
 			st->mode = OKTA_MODE_DEVICE_AUTH;
+		} else if (strcmp(argv[i], "oob_device_fallback") == 0) {
+			st->flags |= OKTA_F_OOB_DEVICE_FALLBACK;
 		} else if (strncmp(argv[i], sockopt, SOCKOPTLEN) == 0) {
 			st->sockname = argv[i] + SOCKOPTLEN;
 			if (st->sockname[0] != '/') {
@@ -276,6 +279,7 @@ okta_authn(struct state *st, int s)
 		.hdr = { .type = CTL_T_AUTHN_REQ, .hdrlen = sizeof(r) },
 		.version = { .major = 0, .minor = 0 },
 		.mode = st->mode,
+		.flags = st->flags,
 
 		.fields = {
 			[CTL_AUTHN_REQ_SERVICE] = st->servicelen,

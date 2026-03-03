@@ -261,6 +261,7 @@ struct state {
 	struct ucred		 cr;
 	struct authn_field	 authn_fields[CTL_AUTHN_REQ_NFIELDS];
 	unsigned int		 mode;
+	unsigned int		 flags;
 	struct response		*res_mfa;
 	struct response		*res_poll;
 
@@ -273,6 +274,10 @@ pam_okta_disconnected(struct state *st)
 	ldebug("pid %d disconnected, exiting", st->cr.pid);
 	exit(0);
 }
+
+static void	okta_mfa_oob_auth(struct state *);
+static void	okta_oob_auth(struct state *);
+static void	okta_device_auth(struct state *);
 
 struct request {
 	const char		*endpoint;
@@ -682,6 +687,8 @@ pam_okta_handler_req(struct state *st, char *buf, size_t buflen)
 		/* NOTREACHED */
 	}
 
+	st->flags = req->flags;
+
 	ptr = buf + req->hdr.hdrlen;
 	len -= req->hdr.hdrlen;
 
@@ -1031,6 +1038,7 @@ okta_curl_init(struct state *st)
 	}
 }
 
+static const char prompt_continue[] = "press Enter to continue";
 
 static void
 okta_oob_challenge(struct state *st, const struct okta_token_poller *p)
@@ -1039,16 +1047,23 @@ okta_oob_challenge(struct state *st, const struct okta_token_poller *p)
 	struct response *res;
 	char *prompt;
 	const char *binding_method;
+	const char *msg = "";
+	const char *next;
 	int rv;
+
+	if (st->flags & OKTA_F_OOB_DEVICE_FALLBACK)
+		msg = " or 'n' Enter to authenticate in a web browser";
 
 	binding_method = response_string(res_poll, "binding_method");
 	if (strcmp(binding_method, "none") == 0) {
 		rv = asprintf(&prompt,
-		    "Push notification sent, press Enter to continue");
+		    "Push notification sent, %s%s\n",
+		    prompt_continue, msg);
 	} else if (strcmp(binding_method, "transfer") == 0) {
 		rv = asprintf(&prompt,
-		    "Push code %s sent, press Enter to continue",
-		    response_string(res_poll, "binding_code"));
+		    "Push code %s sent, %s%s\n",
+		    response_string(res_poll, "binding_code"),
+		    prompt_continue, msg);
 	} else {
 		lwarnx("unsupported binding method %s", binding_method);
 		pam_okta_reply(st, OKTA_CODE_FAILURE,
@@ -1059,8 +1074,20 @@ okta_oob_challenge(struct state *st, const struct okta_token_poller *p)
 	if (rv == -1)
 		lerrx(1, "oob auth prompt");
 
-	(void)pam_okta_prompt(st, prompt, rv + 1, scratch, sizeof(scratch));
+	next = pam_okta_prompt(st, prompt, rv + 1, scratch, sizeof(scratch));
 	free(prompt);
+
+	if (st->flags & OKTA_F_OOB_DEVICE_FALLBACK) {
+		if (next[0] == 'n' || next[0] == 'N') {
+			response_free(st->res_mfa);
+			st->res_mfa = NULL;
+			response_free(st->res_poll);
+			st->res_poll = NULL;
+
+			okta_device_auth(st);
+			return;
+		}
+	}
 
 	/* re-using res */
 	res = okta_token_poll(st, p);
@@ -1089,7 +1116,6 @@ okta_mfa_oob_auth(struct state *st)
 	request_add_data(req, "password", authn_password(st));
 
 	res = st->res_mfa = request_exec(req, 0);
-linfo("%s %u %s", res->endpoint, res->status_code, res->data);
 	switch (res->status_code) {
 	case 200:
 		/* password auth succeeded */
