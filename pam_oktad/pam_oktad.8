@@ -22,7 +22,7 @@
 .Sh SYNOPSIS
 .Nm pam_oktad
 .Bk -words
-.Op Fl dn
+.Op Fl dnS
 .Op Fl D Ar macro Ns = Ns Ar value
 .Op Fl f Ar config_file
 .Ek
@@ -65,6 +65,11 @@ The default configuration file is
 .It Fl n
 Configtest mode.
 Only check the configuration file for valid syntax.
+.It Fl S
+Supervised mode.
+When this option is specified,
+.Nm
+will not detach and does not become a daemon.
 .El
 .Sh FILES
 .Bl -tag -width indent
