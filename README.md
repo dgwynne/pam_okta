@@ -165,6 +165,7 @@ selinux blocks sshd from talking to /var/run/pam_okta/sock by default.
 - `libcurl-devel`
 - `jansson-devel`
 - `jwt-devel`
+- `systemd`
 
 ```
 $ meson setup build
