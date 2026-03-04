@@ -34,6 +34,11 @@ This has the following benefits:
 - the daemon can (theoretically) be placed in a separate network
   namespace, or firewalled separately to the users on the system
 
+As a rule of thumb, the daemon is configured so it knows how to
+communicate with the Okta API, but the module via the PAM stack
+configuration is responsible for deciding what to communicate with
+the API.
+
 ## `pam_oktad` configuration
 
 Put a file like this in `/etc/okta/pam_oktad.conf`:
@@ -60,8 +65,6 @@ to the daemon user.
 
 `pam_okta` supports the following arguments when used in a pam stack:
 
-`socket=/path/to/uds/listener`, defaults to `/var/run/pam_okta/sock`
-
 `mode=mfa-oob` directly authenticates users using their password and
 possibly out-of-band (OOB) as a second factor. This is the default mode.
 It follows the [Direct Authentication using the Okta Verify Push (MFA)](https://developer.okta.com/docs/guides/configure-direct-auth-grants/dmfaoobov/main/) flow.
@@ -71,6 +74,13 @@ Verify Push.
 It follows the [Direct Authentication using the Okta Verify Push (primary factor)](https://developer.okta.com/docs/guides/configure-direct-auth-grants/coobov/main/) flow.
 
 `mode=device` uses the [Device Authentication](https://developer.okta.com/docs/guides/device-authorization-grant/main/) flow to authenticate users.
+
+`oob_device_fallback` allows the authenticating user to fall back to
+device auth if they can't or don't want to do oob. this only makes
+sense when used with `mode=mfa-oob` or `mode=oob`, and relies on the
+integration being configured to support all the required flows.
+
+`socket=/path/to/uds/listener`, defaults to `/var/run/pam_okta/sock`
 
 `sshd=servicename`: `sshd` reports the connection information to PAM
 modules via the `SSH_CONNECTION` environment variable. `pam_okta` and
