@@ -189,7 +189,6 @@ okta_config_private_key_jwt(struct okta_config *conf)
 	FILE *fp;
 	EVP_PKEY *pkey;
 	BIO *bp;
-	int bits;
 
 	fp = fopen(conf->cred, "r");
 	if (fp == NULL)
@@ -205,12 +204,6 @@ okta_config_private_key_jwt(struct okta_config *conf)
 
 	switch (EVP_PKEY_id(pkey)) {
 	case EVP_PKEY_RSA:
-		bits = EVP_PKEY_get_bits(pkey);
-		if (bits < 2048) {
-			warnx("%s: rsa key length %d bits is low (<2048)",
-			    conf->cred, bits);
-		}
-
 		switch (conf->jwt.alg) {
 		case JWT_ALG_NONE:
 			conf->jwt.alg = JWT_ALG_RS256;
