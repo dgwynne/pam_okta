@@ -24,6 +24,7 @@ enum okta_cred_type {
 	OKTA_CRED_UNSET,
 	OKTA_CRED_CLIENT_SECRET,
 	OKTA_CRED_PRIVATE_KEY_JWT,
+	OKTA_CRED_CLIENT_SECRET_JWT,
 };
 
 struct okta_config {

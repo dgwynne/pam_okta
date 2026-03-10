@@ -101,13 +101,14 @@ typedef struct {
 %}
 
 %token	SOCKET HOST DOMAIN CLIENT_ID CLIENT_SECRET USER
-%token	PRIVATE_KEY_JWT JWT ALGORITHM KID
+%token	PRIVATE_KEY_JWT CLIENT_SECRET_JWT JWT ALGORITHM KID
 %token	AUTHORIZATION SERVER ID
 %token	INCLUDE
 %token	ERROR
 %token	<v.string>		STRING
 %token	<v.number>		NUMBER
 %type	<v.string>		string
+%type	<v.number>		client_cred_type
 
 %%
 
@@ -120,8 +121,7 @@ grammar		: /* empty */
 		| grammar authserver '\n'
 		| grammar domain '\n'
 		| grammar client_id '\n'
-		| grammar client_secret '\n'
-		| grammar private_key_jwt '\n'
+		| grammar client_cred '\n'
 		| grammar jwt_sig_alg '\n'
 		| grammar jwt_kid '\n'
 		| grammar user '\n'
@@ -264,27 +264,27 @@ client_id	: CLIENT_ID string {
 		}
 		;
 
-client_secret	: CLIENT_SECRET string {
+client_cred	: client_cred_type string {
 			if (conf->cred_type != OKTA_CRED_UNSET) {
 				yyerror("client credential is already set");
 				free($2);
 				YYERROR;
 			}
 
-			conf->cred_type = OKTA_CRED_CLIENT_SECRET;
+			conf->cred_type = $1;
 			conf->cred = $2;
 		}
 		;
 
-private_key_jwt	: PRIVATE_KEY_JWT STRING {
-			if (conf->cred_type != OKTA_CRED_UNSET) {
-				yyerror("client credential is already set");
-				free($2);
-				YYERROR;
-			}
-
-			conf->cred_type = OKTA_CRED_PRIVATE_KEY_JWT;
-			conf->cred = $2;
+client_cred_type
+		: CLIENT_SECRET {
+			$$ = OKTA_CRED_CLIENT_SECRET;
+		}
+		| PRIVATE_KEY_JWT {
+			$$ = OKTA_CRED_PRIVATE_KEY_JWT;
+		}
+		| CLIENT_SECRET_JWT {
+			$$ = OKTA_CRED_CLIENT_SECRET_JWT;
 		}
 		;
 
@@ -356,6 +356,7 @@ lookup(char *s)
 		{ "authorization",	AUTHORIZATION },
 		{ "client_id",		CLIENT_ID },
 		{ "client_secret",	CLIENT_SECRET },
+		{ "client_secret_jwt",	CLIENT_SECRET_JWT },
 		{ "domain",		DOMAIN },
 		{ "host",		HOST },
 		{ "id",			ID },
@@ -727,6 +728,7 @@ parse_config(const char *filename)
 			yyerror("jwt kid set with client_id");
 		break;
 	case OKTA_CRED_PRIVATE_KEY_JWT:
+	case OKTA_CRED_CLIENT_SECRET_JWT:
 		break;
 	default:
 		abort();
@@ -856,6 +858,9 @@ dump_config(const struct okta_config *c)
 		break;
 	case OKTA_CRED_PRIVATE_KEY_JWT:
 		printf("private_key_jwt \"%s\"\n", c->cred);
+		break;
+	case OKTA_CRED_CLIENT_SECRET_JWT:
+		printf("client_secret_jwt \"%s\"\n", c->cred);
 		break;
 	default:
 		abort();

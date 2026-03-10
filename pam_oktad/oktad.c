@@ -262,11 +262,64 @@ okta_config_private_key_jwt(struct okta_config *conf)
 }
 
 static void
+okta_config_client_secret_jwt(struct okta_config *conf)
+{
+	BIO *bp, *b64;
+	int rv;
+
+	switch (conf->jwt.alg) {
+	case JWT_ALG_NONE:
+		conf->jwt.alg = JWT_ALG_HS256;
+		break;
+	case JWT_ALG_HS256:
+	case JWT_ALG_HS384:
+	case JWT_ALG_HS512:
+		break;
+	default:
+		errx(1, "hmac with jwt algorithm %s is invalid",
+		    jwt_alg_str(conf->jwt.alg));
+		/* NOTREACHED */
+	}
+
+	bp = BIO_new(BIO_s_mem());
+	if (bp == NULL)
+		errx(1, "BIO_new(BIO_s_mem()) failed");
+
+	b64 = BIO_new(BIO_f_base64());
+	if (b64 == NULL)
+		errx(1, "BIO_new(BIO_f_base64()) failed");
+	BIO_set_flags(b64, BIO_FLAGS_BASE64_NO_NL);
+
+	BIO_push(b64, bp);
+
+	rv = BIO_puts(bp, conf->cred);
+	if (BIO_flush(bp) != 1)
+		errx(1, "base64 decode failure");
+
+	rv = BIO_pending(b64);
+	if (rv <= 0)
+		errx(1, "base64 pending failure");
+
+	conf->jwt.len = rv;
+	conf->jwt.key = malloc(conf->jwt.len);
+	if (conf->jwt.key == NULL)
+		errx(1, "client_secret_jwt base64 decode");
+
+	if (BIO_read(b64, conf->jwt.key, conf->jwt.len) <= 0)
+		errx(1, "client_secret_jwt base64 decode failure");
+
+	BIO_free_all(b64);
+}
+
+static void
 okta_config(struct okta_config *conf)
 {
 	switch (conf->cred_type) {
 	case OKTA_CRED_PRIVATE_KEY_JWT:
 		okta_config_private_key_jwt(conf);
+		break;
+	case OKTA_CRED_CLIENT_SECRET_JWT:
+		okta_config_client_secret_jwt(conf);
 		break;
 	default:
 		break;
@@ -487,7 +540,7 @@ xjwt_add_grant_int(jwt_t *jwt, const char *grant, long val)
 }
 
 static void
-request_add_private_key_jwt(struct state *st, struct request *req)
+request_add_jwt(struct state *st, struct request *req)
 {
 	char jti[64]; /* longer than 37 */
 	const struct okta_config *conf = st->conf;
@@ -584,7 +637,8 @@ request_init(struct state *st, const char *endpoint)
 		request_add_data(req, "client_secret", conf->cred);
 		break;
 	case OKTA_CRED_PRIVATE_KEY_JWT:
-		request_add_private_key_jwt(st, req);
+	case OKTA_CRED_CLIENT_SECRET_JWT:
+		request_add_jwt(st, req);
 		break;
 	default:
 		abort();

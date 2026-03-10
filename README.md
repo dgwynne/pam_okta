@@ -52,8 +52,9 @@ domain "example.com"
 client_id "XXX"
 client_secret "YYY"
 # private_key_jwt "keyfile.pem" # JWT private key auth instead of client_secret
+# client_secret_jwt "key" # JWT shared key auth instead of client_secret
 # jwt kid "keyid" # optional with JWT auth
-# jwt algorithm RS256|RS384|RS512 # optional with JWT auth
+# jwt algorithm RS256... # optional with JWT auth
 ```
 
 The domain configuration is added to the authenticating username to
