@@ -22,7 +22,7 @@ This has the following benefits:
   - the code and side effects of the APIs are easier to reason about
     and clean up
 - the module and therefore the authenticating process does not need
-  access to the Okta client_id and client_secret
+  access to the Okta client_id or authentication secrets
 - the `pam_oktad` daemon forks a handler per `pam_okta` authentication
   request
   - this isolates the authenticating process running `pam_okta` from
@@ -51,6 +51,9 @@ domain "example.com"
 # authorization server id "default" # optional, unused if not set
 client_id "XXX"
 client_secret "YYY"
+# private_key_jwt "keyfile.pem" # JWT private key auth instead of client_secret
+# jwt kid "keyid" # optional with JWT auth
+# jwt algorithm RS256|RS384|RS512 # optional with JWT auth
 ```
 
 The domain configuration is added to the authenticating username to
