@@ -203,7 +203,7 @@ okta_config_private_key_jwt(struct okta_config *conf)
 
 	fclose(fp);
 
-	switch (EVP_PKEY_get_base_id(pkey)) {
+	switch (EVP_PKEY_id(pkey)) {
 	case EVP_PKEY_RSA:
 		bits = EVP_PKEY_get_bits(pkey);
 		if (bits < 2048) {
