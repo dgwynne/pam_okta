@@ -225,6 +225,22 @@ okta_config_private_key_jwt(struct okta_config *conf)
 			/* NOTREACHED */
 		}
 		break;
+	case EVP_PKEY_EC:
+		switch (conf->jwt.alg) {
+		case JWT_ALG_NONE:
+			conf->jwt.alg = JWT_ALG_ES256;
+			break;
+		case JWT_ALG_ES256:
+		case JWT_ALG_ES384:
+		case JWT_ALG_ES512:
+			break;
+		default:
+			errx(1, "%s: ec key with jwt algorithm %s is invalid",
+			    conf->cred, jwt_alg_str(conf->jwt.alg));
+			/* NOTREACHED */
+		}
+		break;
+
 	default:
 		errx(1, "%s: unsupported key type", conf->cred);
 		/* NOTREACHED */
