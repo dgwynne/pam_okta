@@ -20,6 +20,12 @@
 
 #define OKTAD_USERNAME	"_pam_oktad"
 
+enum okta_cred_type {
+	OKTA_CRED_UNSET,
+	OKTA_CRED_CLIENT_SECRET,
+	OKTA_CRED_PRIVATE_KEY_JWT,
+};
+
 struct okta_config {
 	char		*user;
 	char		*sockname;
@@ -28,7 +34,16 @@ struct okta_config {
 	char		*authserver;
 	char		*domain;
 	char		*client_id;
-	char		*client_secret;
+	char		*cred;
+	enum okta_cred_type
+			 cred_type;
+
+	struct {
+		char			*kid;
+		jwt_alg_t		 alg;
+		unsigned char		*key;
+		size_t			 len;
+	}		 jwt;
 };
 
 int	cmdline_symset(const char *);
@@ -36,3 +51,5 @@ struct okta_config *
 	parse_config(const char *);
 void	clear_config(struct okta_config *);
 void	dump_config(const struct okta_config *);
+
+int	jwt_pkey_alg(const char *);

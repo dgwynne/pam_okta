@@ -11,6 +11,7 @@ bsd_dep = dependency('libbsd', required: true)
 curl_dep = dependency('libcurl', required: true)
 json_dep = dependency('jansson', required: true)
 jwt_dep = dependency('libjwt', required: true)
+crypto_dep = dependency('libcrypto', required: true)
 
 progname = 'pam_oktad'
 sbindir = get_option('sbindir')
@@ -23,7 +24,7 @@ conf.set('progname', progname)
 executable(
 	progname,
 	['oktad.c', 'log.c', parser],
-	dependencies: [ bsd_dep, curl_dep, json_dep, jwt_dep ],
+	dependencies: [ bsd_dep, crypto_dep, curl_dep, json_dep, jwt_dep ],
 	install: true,
 	install_dir: sbindir,
 )

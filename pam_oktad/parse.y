@@ -39,9 +39,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <assert.h>
 
 #include <bsd/sys/queue.h>
 #include <bsd/stdlib.h>
+
+#include <jwt.h>
 
 #include "okta.h"
 #include "protocol.h"
@@ -98,6 +101,7 @@ typedef struct {
 %}
 
 %token	SOCKET HOST DOMAIN CLIENT_ID CLIENT_SECRET USER
+%token	PRIVATE_KEY_JWT JWT ALGORITHM KID
 %token	AUTHORIZATION SERVER ID
 %token	INCLUDE
 %token	ERROR
@@ -117,6 +121,9 @@ grammar		: /* empty */
 		| grammar domain '\n'
 		| grammar client_id '\n'
 		| grammar client_secret '\n'
+		| grammar private_key_jwt '\n'
+		| grammar jwt_sig_alg '\n'
+		| grammar jwt_kid '\n'
 		| grammar user '\n'
 		| grammar error '\n'		{ file->errors++; }
 		;
@@ -248,7 +255,7 @@ domain		: DOMAIN string {
 
 client_id	: CLIENT_ID string {
 			if (conf->client_id != NULL) {
-				yyerror("client id is already configured");
+				yyerror("client_id is already set");
 				free($2);
 				YYERROR;
 			}
@@ -258,13 +265,48 @@ client_id	: CLIENT_ID string {
 		;
 
 client_secret	: CLIENT_SECRET string {
-			if (conf->client_secret != NULL) {
-				yyerror("client secret is already configured");
+			if (conf->cred_type != OKTA_CRED_UNSET) {
+				yyerror("client credential is already set");
 				free($2);
 				YYERROR;
 			}
 
-			conf->client_secret = $2;
+			conf->cred_type = OKTA_CRED_CLIENT_SECRET;
+			conf->cred = $2;
+		}
+		;
+
+private_key_jwt	: PRIVATE_KEY_JWT STRING {
+			if (conf->cred_type != OKTA_CRED_UNSET) {
+				yyerror("client credential is already set");
+				free($2);
+				YYERROR;
+			}
+
+			conf->cred_type = OKTA_CRED_PRIVATE_KEY_JWT;
+			conf->cred = $2;
+		}
+		;
+
+jwt_sig_alg	: JWT ALGORITHM STRING {
+			jwt_alg_t alg = jwt_str_alg($3);
+
+			if (alg == JWT_ALG_INVAL)
+				yyerror("jwt algorithm %s invalid", $3);
+			else
+				conf->jwt.alg = alg;
+
+			free($3);
+		}
+		;
+
+jwt_kid		: JWT KID STRING {
+			if (conf->jwt.kid != NULL) {
+				yyerror("jwt kid is already set");
+				free($3);
+			}
+
+			conf->jwt.kid = $3;
 		}
 		;
 
@@ -310,12 +352,16 @@ lookup(char *s)
 {
 	/* this has to be sorted always */
 	static const struct keywords keywords[] = {
+		{ "algorithm",		ALGORITHM },
 		{ "authorization",	AUTHORIZATION },
 		{ "client_id",		CLIENT_ID },
 		{ "client_secret",	CLIENT_SECRET },
 		{ "domain",		DOMAIN },
 		{ "host",		HOST },
 		{ "id",			ID },
+		{ "jwt",		JWT },
+		{ "kid",		KID },
+		{ "private_key_jwt",	PRIVATE_KEY_JWT },
 		{ "server",		SERVER },
 		{ "socket",		SOCKET },
 		{ "user",		USER },
@@ -667,8 +713,24 @@ parse_config(const char *filename)
 		yyerror("okta user email domain has not been configured");
 	if (conf->client_id == NULL)
 		yyerror("okta client_id has not been configured");
-	if (conf->client_secret == NULL)
-		yyerror("okta client_secret has not been configured");
+
+	assert((conf->cred_type == OKTA_CRED_UNSET) == (conf->cred == NULL));
+	switch (conf->cred_type) {
+	case OKTA_CRED_UNSET:
+		yyerror("okta client credential has not been configured");
+		break;
+	case OKTA_CRED_CLIENT_SECRET:
+		assert(conf->jwt.kid == NULL);
+		if (conf->jwt.alg != JWT_ALG_NONE)
+			yyerror("jwt algorithm set with client_id");
+		if (conf->jwt.kid != NULL)
+			yyerror("jwt kid set with client_id");
+		break;
+	case OKTA_CRED_PRIVATE_KEY_JWT:
+		break;
+	default:
+		abort();
+	}
 
 	errors = file->errors;
 	popfile();
@@ -771,7 +833,8 @@ clear_config(struct okta_config *c)
 	free(c->authserver);
 	free(c->domain);
 	free(c->client_id);
-	free(c->client_secret);
+	free(c->cred);
+	free(c->jwt.kid);
 
 	free(c);
 }
@@ -787,5 +850,18 @@ dump_config(const struct okta_config *c)
 		printf("authorization server id \"%s\"\n", c->authserver);
 	printf("domain \"%s\"\n", c->domain);
 	printf("client_id \"%s\"\n", c->client_id);
-	printf("client_secret \"%s\"\n", c->client_secret);
+	switch (c->cred_type) {
+	case OKTA_CRED_CLIENT_SECRET:
+		printf("client_secret \"%s\"\n", c->cred);
+		break;
+	case OKTA_CRED_PRIVATE_KEY_JWT:
+		printf("private_key_jwt \"%s\"\n", c->cred);
+		break;
+	default:
+		abort();
+	}
+	if (c->jwt.kid != NULL)
+		printf("jwt kid \"%s\"\n", c->jwt.kid);
+	if (c->jwt.alg != JWT_ALG_NONE)
+		printf("jwt algorithm %s\n", jwt_alg_str(c->jwt.alg));
 }

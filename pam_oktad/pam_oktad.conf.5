@@ -49,6 +49,16 @@ used to authenticate Client requests against the Okta API.
 The
 .Ic client_secret
 used to authenticate Client requests against the Okta API.
+.It Ic private_key_jwt Ar KEYFILE
+Use JWT with a private key to authenticate Client requests against the
+Okta API.
+A PEM encoded private key will be loaded from the file specified by
+.Ar KEYFILE .
+.It Ic jwt Ic kid Ar KID
+Provide a JWT Key ID that identifies the key being used for JWT
+authentication.
+By default the JWT Key ID is not specified and will not be added to the
+JWT header when signing the client requests.
 .It Ic host Ar HOST
 The Okta API host.
 .It Ic domain Ar DOMAIN

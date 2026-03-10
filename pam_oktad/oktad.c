@@ -37,6 +37,13 @@
 #include <errno.h>
 #include <err.h>
 
+#include <openssl/evp.h>
+#include <openssl/bio.h>
+#include <openssl/pem.h>
+#include <openssl/err.h>
+
+#include <jwt.h>
+
 #include <bsd/string.h> /* strlcpy */
 #include <bsd/stdlib.h> /* getprogname */
 #include <bsd/err.h>
@@ -48,6 +55,7 @@
 
 #define nitems(_a) (sizeof((_a)) / sizeof((_a)[0]))
 
+static void		okta_config(struct okta_config *);
 static int		socket_open(const char *);
 static int		pam_okta_handler(int, const struct okta_config *);
 static void		sigchld(int);
@@ -116,6 +124,8 @@ main(int argc, char **argv)
 	if (conf == NULL)
 		exit(1);
 
+	okta_config(conf);
+
 	if (confcheck) {
 		dump_config(conf);
 		return (0);
@@ -173,6 +183,80 @@ main(int argc, char **argv)
 	return (0);
 }
 
+static void
+okta_config_private_key_jwt(struct okta_config *conf)
+{
+	FILE *fp;
+	EVP_PKEY *pkey;
+	BIO *bp;
+	int bits;
+
+	fp = fopen(conf->cred, "r");
+	if (fp == NULL)
+		err(1, "jwt private key %s", conf->cred);
+
+	pkey = PEM_read_PrivateKey(fp, NULL, NULL, NULL);
+	if (pkey == NULL) {
+		ERR_print_errors_fp(stderr);
+		exit(1);
+	}
+
+	fclose(fp);
+
+	switch (EVP_PKEY_get_base_id(pkey)) {
+	case EVP_PKEY_RSA:
+		bits = EVP_PKEY_get_bits(pkey);
+		if (bits < 2048) {
+			warnx("%s: rsa key length %d bits is low (<2048)",
+			    conf->cred, bits);
+		}
+
+		switch (conf->jwt.alg) {
+		case JWT_ALG_NONE:
+			conf->jwt.alg = JWT_ALG_RS256;
+			break;
+		case JWT_ALG_RS256:
+		case JWT_ALG_RS384:
+		case JWT_ALG_RS512:
+			break;
+		default:
+			errx(1, "%s: rsa key with jwt algorithm %s is invalid",
+			    conf->cred, jwt_alg_str(conf->jwt.alg));
+			/* NOTREACHED */
+		}
+		break;
+	default:
+		errx(1, "%s: unsupported key type", conf->cred);
+		/* NOTREACHED */
+	}
+
+	bp = BIO_new(BIO_s_mem());
+	if (bp == NULL)
+		errx(1, "BIO new failed");
+	if (!BIO_set_close(bp, BIO_NOCLOSE))
+		errx(1, "BIO_set_close BIO_NOCLOSE failed");
+
+	if (!PEM_write_bio_PrivateKey(bp, pkey, NULL, NULL, 0, 0, NULL))
+		errx(1, "write privatekey");
+
+	conf->jwt.len = BIO_get_mem_data(bp, &conf->jwt.key);
+
+	BIO_free(bp);
+	EVP_PKEY_free(pkey);
+}
+
+static void
+okta_config(struct okta_config *conf)
+{
+	switch (conf->cred_type) {
+	case OKTA_CRED_PRIVATE_KEY_JWT:
+		okta_config_private_key_jwt(conf);
+		break;
+	default:
+		break;
+	}
+}
+
 static int
 socket_open(const char *sockname)
 {
@@ -228,7 +312,6 @@ sigchld(int sig)
 
 #include <curl/curl.h>
 #include <jansson.h>
-#include <jwt.h>
 #include <ctype.h>
 
 static const char msg_auth_expired[] = "Authentication code expired";
@@ -329,6 +412,115 @@ request_add_header(struct request *req, const char *h)
 		lerrx(1, "%s add header %s failed", req->endpoint, h);
 }
 
+static void
+request_add_data(struct request *req, const char *name, const char *data)
+{
+	char *key;
+	size_t keylen;
+	char *val;
+	size_t vallen;
+	size_t len;
+	char *form;
+
+	key = curl_easy_escape(NULL, name, strlen(name));
+	if (key == NULL)
+		lerrx(1, "%s add part %s name failed", req->endpoint, name);
+	val = curl_easy_escape(NULL, data, strlen(data));
+	if (val == NULL)
+		lerrx(1, "%s add part %s data failed", req->endpoint, name);
+
+	keylen = strlen(key);
+	vallen = strlen(val);
+
+	len = req->formlen;
+	/* len + '&' + key + '=' + val + nul */
+	form = realloc(req->form, len + 1 + keylen + 1 + vallen + 1);
+	if (form == NULL)
+		lerr(1, "%s add part %s", req->endpoint, name);
+
+	form[len] = '&';
+	len++;
+	memcpy(form + len, key, keylen);
+	len += keylen;
+	form[len] = '=';
+	len++;
+	memcpy(form + len, val, vallen);
+	len += vallen;
+
+	req->form = form;
+	req->formlen = len;
+
+	free(key);
+	free(val);
+}
+
+static void
+xjwt_add_grant(jwt_t *jwt, const char *grant, const char *val)
+{
+	int error = jwt_add_grant(jwt, grant, val);
+	if (error != 0)
+		lerrx(1, "jwt add grant %s: %s", grant, strerror(error));
+}
+
+static void
+xjwt_add_grant_int(jwt_t *jwt, const char *grant, long val)
+{
+	int error = jwt_add_grant_int(jwt, grant, val);
+	if (error != 0)
+		lerrx(1, "jwt add grant %s: %s", grant, strerror(error));
+}
+
+static void
+request_add_private_key_jwt(struct state *st, struct request *req)
+{
+	char jti[64]; /* longer than 37 */
+	const struct okta_config *conf = st->conf;
+	jwt_t *jwt;
+	char *client_assertion;
+	int error;
+
+	time_t iat = time(NULL);
+	time_t exp = iat + 300;
+
+	error = jwt_new(&jwt);
+	if (error != 0)
+		lerrx(1, "%s new jwt: %s", __func__, strerror(error));
+
+	if (conf->jwt.kid != NULL) {
+		error = jwt_add_header(jwt, "kid", conf->jwt.kid);
+		if (error != 0)
+			lerrx(1, "%s add kid: %s", __func__, strerror(error));
+	}
+
+	xjwt_add_grant(jwt, "aud", req->url);
+	xjwt_add_grant_int(jwt, "iat", iat);
+	xjwt_add_grant_int(jwt, "exp", exp);
+	xjwt_add_grant(jwt, "iss", conf->client_id);
+	xjwt_add_grant(jwt, "sub", conf->client_id);
+
+	error = snprintf(jti, sizeof(jti),
+	    "%08x.%08x", arc4random(), arc4random());
+	if (error == -1)
+		lerrx(1, "%s jti snprintf", __func__);
+	xjwt_add_grant(jwt, "jti", jti);
+
+	error = jwt_set_alg(jwt, conf->jwt.alg,
+	    conf->jwt.key, conf->jwt.len);
+	if (error != 0)
+		lerrx(1, "jwt set alg: %s", strerror(error));
+
+	client_assertion = jwt_encode_str(jwt);
+	if (client_assertion == NULL)
+		lerr(1, "jwt encode");
+
+	request_add_data(req, "client_assertion_type",
+	    "urn:ietf:params:oauth:client-assertion-type:jwt-bearer");
+	request_add_data(req, "client_assertion", client_assertion);
+
+	jwt_free_str(client_assertion);
+	jwt_free(jwt);
+}
+
 static struct request *
 request_init(struct state *st, const char *endpoint)
 {
@@ -371,6 +563,17 @@ request_init(struct state *st, const char *endpoint)
 	memcpy(req->form, st->form, st->formlen);
 	req->formlen = st->formlen;
 
+	switch (conf->cred_type) {
+	case OKTA_CRED_CLIENT_SECRET:
+		request_add_data(req, "client_secret", conf->cred);
+		break;
+	case OKTA_CRED_PRIVATE_KEY_JWT:
+		request_add_private_key_jwt(st, req);
+		break;
+	default:
+		abort();
+	}
+
 	req->endpoint = endpoint;
 	req->curl = curl;
 
@@ -379,48 +582,6 @@ request_init(struct state *st, const char *endpoint)
 #endif
 
 	return (req);
-}
-
-static void
-request_add_data(struct request *req, const char *name, const char *data)
-{
-	char *key;
-	size_t keylen;
-	char *val;
-	size_t vallen;
-	size_t len;
-	char *form;
-
-	key = curl_easy_escape(NULL, name, strlen(name));
-	if (key == NULL)
-		lerrx(1, "%s add part %s name failed", req->endpoint, name);
-	val = curl_easy_escape(NULL, data, strlen(data));
-	if (val == NULL)
-		lerrx(1, "%s add part %s data failed", req->endpoint, name);
-
-	keylen = strlen(key);
-	vallen = strlen(val);
-
-	len = req->formlen;
-	/* len + '&' + key + '=' + val + nul */
-	form = realloc(req->form, len + 1 + keylen + 1 + vallen + 1);
-	if (form == NULL)
-		lerr(1, "%s add part %s", req->endpoint, name);
-
-	form[len] = '&';
-	len++;
-	memcpy(form + len, key, keylen);
-	len += keylen;
-	form[len] = '=';
-	len++;
-	memcpy(form + len, val, vallen);
-	len += vallen;
-
-	req->form = form;
-	req->formlen = len;
-
-	free(key);
-	free(val);
 }
 
 static struct response *
@@ -971,7 +1132,6 @@ static void
 okta_curl_init(struct state *st)
 {
 	char *client_id;
-	char *client_secret;
 	int rv;
 
 	rv = asprintf(&st->user_email, "%s@%s",
@@ -986,20 +1146,13 @@ okta_curl_init(struct state *st)
 	if (client_id == NULL)
 		lerrx(1, "client_id form init failed");
 
-	client_secret = curl_easy_escape(NULL,
-	    st->conf->client_secret, strlen(st->conf->client_secret));
-	if (client_id == NULL)
-		lerrx(1, "client_secret form init failed");
-
-	rv = asprintf(&st->form, "client_id=%s&client_secret=%s",
-	    client_id, client_secret);
+	rv = asprintf(&st->form, "client_id=%s", client_id);
 	if (rv == -1)
 		lerrx(1, "form init failed");
 
 	st->formlen = rv;
 
 	free(client_id);
-	free(client_secret);
 
 	if (st->authn_fields[CTL_AUTHN_REQ_SSHENV].len > 0) {
 		struct addrinfo hints = {
