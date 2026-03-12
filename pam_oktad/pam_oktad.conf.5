@@ -64,6 +64,11 @@ Provide a JWT Key ID that identifies the key being used for JWT
 authentication.
 By default the JWT Key ID is not specified and will not be added to the
 JWT header when signing the client requests.
+.It Ic jwt Ic algorithm Ar ALG
+Specify which JWT Signature Algorithm to use when signing requests
+against the Okta API.
+If this is not specified a default appropriate to the specified credential
+is chosen.
 .It Ic host Ar HOST
 The Okta API host.
 .It Ic domain Ar DOMAIN
