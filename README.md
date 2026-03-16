@@ -243,8 +243,6 @@ $ sudo ./build/pam_oktad/pam_oktad -
 
 # Todo
 
-- use "direct" auth as a fallback option for "mfa-oob" and "oob" auth
-- support JWT for client_id auth
 - consider presenting a QR code for device auth urls
 
 # Acknowledgements
