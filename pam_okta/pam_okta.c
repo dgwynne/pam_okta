@@ -91,8 +91,8 @@ parse_args(struct state *st, int argc, const char **argv)
 			st->mode = OKTA_MODE_OOB;
 		} else if (strcmp(argv[i], "mode=device") == 0) {
 			st->mode = OKTA_MODE_DEVICE_AUTH;
-		} else if (strcmp(argv[i], "oob_device_fallback") == 0) {
-			st->flags |= OKTA_F_OOB_DEVICE_FALLBACK;
+		} else if (strcmp(argv[i], "allow_decline") == 0) {
+			st->flags |= OKTA_F_ALLOW_DECLINE;
 		} else if (strncmp(argv[i], sockopt, SOCKOPTLEN) == 0) {
 			st->sockname = argv[i] + SOCKOPTLEN;
 			if (st->sockname[0] != '/') {

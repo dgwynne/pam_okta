@@ -57,14 +57,8 @@ This mode does not verify the users password.
 If password authentication is required, a preceding module in the stack
 must check it.
 .El
-.It Cm oob_device_fallback
-Allow the user to request Device Authentication instead of out-of-band
-(OOB) authentication.
-This only affects the
-.Cm mfa-oob
-and
-.Cm oob
-modes.
+.It Cm allow_decline
+Allow the user to decline out-of-band (OOB) authentication.
 .It Cm socket Ns = Ns Ar sockname
 Specify the path of the Unix Domain Socket that the
 .Xr pam_oktad 8

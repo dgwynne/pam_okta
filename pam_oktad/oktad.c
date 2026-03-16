@@ -1267,8 +1267,8 @@ okta_oob_challenge(struct state *st, const struct okta_token_poller *p)
 	const char *next;
 	int rv;
 
-	if (st->flags & OKTA_F_OOB_DEVICE_FALLBACK)
-		msg = " or 'n' Enter to authenticate in a web browser";
+	if (st->flags & OKTA_F_ALLOW_DECLINE)
+		msg = " or 'n' Enter to decline";
 
 	binding_method = response_string(res_poll, "binding_method");
 	if (strcmp(binding_method, "none") == 0) {
@@ -1293,14 +1293,9 @@ okta_oob_challenge(struct state *st, const struct okta_token_poller *p)
 	next = pam_okta_prompt(st, prompt, rv + 1, scratch, sizeof(scratch));
 	free(prompt);
 
-	if (st->flags & OKTA_F_OOB_DEVICE_FALLBACK) {
+	if (st->flags & OKTA_F_ALLOW_DECLINE) {
 		if (next[0] == 'n' || next[0] == 'N') {
-			response_free(st->res_mfa);
-			st->res_mfa = NULL;
-			response_free(st->res_poll);
-			st->res_poll = NULL;
-
-			okta_device_auth(st);
+			pam_okta_reply(st, OKTA_CODE_DECLINE, NULL, 0);
 			return;
 		}
 	}
