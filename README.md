@@ -79,10 +79,9 @@ It follows the [Direct Authentication using the Okta Verify Push (primary factor
 
 `mode=device` uses the [Device Authentication](https://developer.okta.com/docs/guides/device-authorization-grant/main/) flow to authenticate users.
 
-`oob_device_fallback` allows the authenticating user to fall back to
-device auth if they can't or don't want to do oob. this only makes
-sense when used with `mode=mfa-oob` or `mode=oob`, and relies on the
-integration being configured to support all the required flows.
+`allow_decline` allows the authenticating user to decline authentication
+with an oob method. this allows a pam stack to be constructed that offers
+another factor if they can't use the oob method.
 
 `socket=/path/to/uds/listener`, defaults to `/var/run/pam_okta/sock`
 
