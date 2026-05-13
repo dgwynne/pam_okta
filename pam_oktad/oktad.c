@@ -379,6 +379,7 @@ sigchld(int sig)
 static const char msg_auth_expired[] = "Authentication code expired";
 static const char msg_password_required[] = "Password required";
 static const char msg_unsupported_mfa[] = "MFA challenge is not supported";
+static const char msg_retries[] = "Too many attempts";
 
 /* long strings are long */
 #define OKTA_CHALLENGE_T_OOB "http://auth0.com/oauth/grant-type/mfa-oob"
@@ -407,6 +408,7 @@ struct state {
 	struct authn_field	 authn_fields[CTL_AUTHN_REQ_NFIELDS];
 	unsigned int		 mode;
 	unsigned int		 flags;
+	unsigned int		 can_otp;
 	struct response		*res_mfa;
 	struct response		*res_poll;
 
@@ -904,6 +906,10 @@ pam_okta_handler_req(struct state *st, char *buf, size_t buflen)
 	case OKTA_MODE_MFA_OOB:
 	case OKTA_MODE_OOB:
 	case OKTA_MODE_DEVICE_AUTH:
+	case OKTA_MODE_MFA_OTP:
+	case OKTA_MODE_OTP:
+	case OKTA_MODE_MFA_OOB_OTP:
+	case OKTA_MODE_OOB_OTP:
 		st->mode = req->mode;
 		break;
 	default:
@@ -1254,7 +1260,65 @@ okta_curl_init(struct state *st)
 	}
 }
 
-static const char prompt_continue[] = "press Enter to continue";
+#if 0
+static int
+is_otp(const char *str)
+{
+	size_t i;
+
+	for (i = 0; i < 6; i++) {
+		if (!isdigit(str[i]))
+			return (0);
+	}
+
+	return (str[6] == '\0');
+}
+#endif
+
+static int
+okta_otp_auth_token(struct state *st, const char *otp)
+{
+	struct request *req;
+	struct response *res;
+
+	req = request_init(st, "token");
+
+	request_add_data(req, "scope", okta_scopes);
+	if (st->res_mfa == NULL) {
+		request_add_data(req, "grant_type", "urn:okta:params:oauth:grant-type:otp");
+		request_add_data(req, "login_hint", authn_username(st));
+	} else {
+		request_add_data(req, "grant_type", "http://auth0.com/oauth/grant-type/mfa-otp");
+		request_add_data(req, "mfa_token", response_string(st->res_mfa, "mfa_token"));
+	}
+	request_add_data(req, "otp", otp);
+
+	res = request_exec(req, 0);
+	switch (res->status_code) {
+	case 200:
+		okta_token_done(st, res);
+		return (0);
+	case 400:
+		if (strcmp(response_string(res, "error"),
+		    "invalid_grant") == 0) {
+			linfo("auth for pid %d user %s: %s",
+			    st->cr.pid, authn_username(st),
+			    response_string(res, "error_description"));
+			return (-1);
+		}
+		break;
+	default:
+		break;
+	}
+
+	lerrx(1, "%s (otp) status code %u %s: %s",
+	    res->endpoint, res->status_code,
+	    response_string(res, "error"),
+	    response_string(res, "error_description"));
+}
+
+static const char prompt_continue[] = "Press Enter to continue";
+static const char prompt_or_otp[] = ", or an OTP code";
 
 static void
 okta_oob_challenge(struct state *st, const struct okta_token_poller *p)
@@ -1263,23 +1327,31 @@ okta_oob_challenge(struct state *st, const struct okta_token_poller *p)
 	struct response *res;
 	char *prompt;
 	const char *binding_method;
+	const char *otp_msg = "";
 	const char *msg = "";
 	const char *next;
 	int rv;
 
+	switch (st->mode) {
+	case OKTA_MODE_MFA_OOB_OTP:
+	case OKTA_MODE_OOB_OTP:
+		otp_msg = prompt_or_otp;
+		break;
+	}
+
 	if (st->flags & OKTA_F_ALLOW_DECLINE)
-		msg = " or 'n' Enter to decline";
+		msg = ", or 'n' to decline";
 
 	binding_method = response_string(res_poll, "binding_method");
 	if (strcmp(binding_method, "none") == 0) {
 		rv = asprintf(&prompt,
-		    "Push notification sent, %s%s\n",
-		    prompt_continue, msg);
+		    "Push notification sent. %s%s%s\n",
+		    prompt_continue, otp_msg, msg);
 	} else if (strcmp(binding_method, "transfer") == 0) {
 		rv = asprintf(&prompt,
-		    "Push code %s sent, %s%s\n",
+		    "Push code %s sent. %s%s%s\n",
 		    response_string(res_poll, "binding_code"),
-		    prompt_continue, msg);
+		    prompt_continue, otp_msg, msg);
 	} else {
 		lwarnx("unsupported binding method %s", binding_method);
 		pam_okta_reply(st, OKTA_CODE_FAILURE,
@@ -1300,23 +1372,29 @@ okta_oob_challenge(struct state *st, const struct okta_token_poller *p)
 		}
 	}
 
+	if (otp_msg == prompt_or_otp && /* this is cheeky */
+	    next[0] != '\0' &&
+	    okta_otp_auth_token(st, next) == 0) {
+		/* this worked */
+		return;
+	}
+
 	/* re-using res */
 	res = okta_token_poll(st, p);
 	okta_token_done(st, res);
 }
 
-static void
-okta_mfa_oob_auth(struct state *st)
+static int
+okta_mfa_password_auth(struct state *st, const char *mfa_type)
 {
 	struct request *req;
 	struct response *res;
-	const char *challenge_type;
 
 	if (authn_password(st) == NULL) {
-		lwarnx("password required for mfa-oob authentication");
+		lwarnx("password required for %s authentication", mfa_type);
 		pam_okta_reply(st, OKTA_CODE_FAILURE,
 		    msg_password_required, sizeof(msg_password_required));
-		return;
+		return (0);
 	}
 
 	req = request_init(st, "token");
@@ -1331,7 +1409,7 @@ okta_mfa_oob_auth(struct state *st)
 	case 200:
 		/* password auth succeeded */
 		okta_token_done(st, res);
-		return;
+		return (0);
 	case 400:
 		if (strcmp(response_string(res, "error"),
 		    "invalid_grant") == 0) {
@@ -1340,37 +1418,126 @@ okta_mfa_oob_auth(struct state *st)
 			msg = response_string(res, "error_description");
 			pam_okta_reply(st, OKTA_CODE_FAILURE,
 			    msg, strlen(msg) + 1);
-			return;
+			return (0);
 		}
-		goto res_error;
+		break;
 	case 403:
 		if (strcmp(response_string(res, "error"),
 		    "mfa_required") == 0)
-			break;
-		goto res_error;
+			return (-1);
+		break;
+	default:
+		break;
+	}
+
+	lerrx(1, "%s (%s password) status code %u %s: %s",
+	    res->endpoint, mfa_type, res->status_code,
+	    response_string(res, "error"),
+	    response_string(res, "error_description"));
+}
+
+static const char prompt_otp[] = "Enter OTP code to continue";
+
+static void
+okta_otp_auth(struct state *st)
+{
+	char *prompt;
+	const char *msg = "";
+	const char *otp;
+	int rv;
+	unsigned int tries = 3;
+
+	if (st->flags & OKTA_F_ALLOW_DECLINE)
+		msg = ", or 'n' to decline";
+
+	rv = asprintf(&prompt, "%s%s", prompt_otp, msg);
+	if (rv == -1)
+		lerrx(1, "otp auth prompt");
+
+	do {
+		otp = pam_okta_prompt(st, prompt, rv + 1, scratch, sizeof(scratch));
+
+		if (st->flags & OKTA_F_ALLOW_DECLINE) {
+			if (otp[0] == 'n' || otp[0] == 'N') {
+				pam_okta_reply(st, OKTA_CODE_DECLINE, NULL, 0);
+				return;
+			}
+		}
+
+		if (okta_otp_auth_token(st, otp) == 0)
+			return;
+
+	} while (--tries > 0);
+	free(prompt);
+
+	pam_okta_reply(st, OKTA_CODE_FAILURE, msg_retries, sizeof(msg_retries));
+}
+
+static void
+okta_mfa_otp_auth(struct state *st)
+{
+	if (okta_mfa_password_auth(st, "mfa-otp") == 0) {
+		/* all done */
+		return;
+	}
+
+	/* needs a second factor */
+
+	okta_otp_auth(st);
+}
+
+static void
+okta_mfa_oob_auth(struct state *st)
+{
+	struct request *req;
+	struct response *res;
+	const char *challenge_type;
+
+	if (okta_mfa_password_auth(st, "mfa-oob") == 0) {
+		/* all done */
+		return;
+	}
+
+	/* needs mfa */
+
+	req = request_init(st, "challenge");
+
+	request_add_data(req, "mfa_token", response_string(st->res_mfa, "mfa_token"));
+	request_add_data(req, "channel_hint", "push");
+	request_add_data(req, "challenge_types_supported", OKTA_CHALLENGE_T_OOB);
+
+	res = request_exec(req, 0);
+	switch (res->status_code) {
+	case 200:
+		break;
+	case 403:
+		if (strcmp(response_string(res, "error"),
+		    "access_denied") == 0) {
+			/* user isn't enrolled in oob? */
+			if (st->mode == OKTA_MODE_OOB_OTP) {
+				response_free(res);
+				okta_otp_auth(st);
+				return;
+			}
+
+			pam_okta_reply(st, OKTA_CODE_FAILURE,
+			    msg_unsupported_mfa, sizeof(msg_unsupported_mfa));
+			return;
+		}
+		/* FALLTHROUGH */
 	default:
 		goto res_error;
 	}
 
-	req = request_init(st, "challenge");
-
-	request_add_data(req, "mfa_token", response_string(res, "mfa_token"));
-	request_add_data(req, "channel_hint", "push");
-	request_add_data(req, "challenge_types_supported",
-	    OKTA_CHALLENGE_T_OOB
-#ifdef notyet
-	    " " OKTA_CHALLENGE_T_OTP);
-#endif
-	);
-
-	res = st->res_poll = request_exec(req, 0);
-	if (st->res_poll->status_code != 200)
-		goto res_error;
-
+	st->res_poll = res;
 	st->start_nsec = clock_read();
 
 	challenge_type = response_string(st->res_poll, "challenge_type");
 	if (strcmp(challenge_type, OKTA_CHALLENGE_T_OOB) == 0) {
+		okta_oob_challenge(st, &okta_mfa_oob_poller);
+		return;
+	}
+	if (strcmp(challenge_type, OKTA_CHALLENGE_T_OTP) == 0) {
 		okta_oob_challenge(st, &okta_mfa_oob_poller);
 		return;
 	}
@@ -1399,15 +1566,24 @@ okta_oob_auth(struct state *st)
 	request_add_data(req, "challenge_hint", okta_oob_poller.grant_type);
 	request_add_data(req, "channel_hint", "push");
 
-	res = st->res_poll = request_exec(req, 0);
+	res = request_exec(req, 0);
 	switch (res->status_code) {
 	case 200:
 		/* oob has been initiated */
 		break;
+	case 403:
+		/* user isn't enrolled in oob? */
+		if (st->mode == OKTA_MODE_OOB_OTP) {
+			response_free(res);
+			okta_otp_auth(st);
+			return;
+		}
+		/* FALLTHROUGH */
 	default:
 		goto res_error;
 	}
 
+	st->res_poll = res;
 	st->start_nsec = clock_read();
 
 	okta_oob_challenge(st, &okta_oob_poller);
@@ -1481,14 +1657,22 @@ pam_okta_handler(int c, const struct okta_config *conf)
 	okta_curl_init(st);
 
 	switch (st->mode) {
+	case OKTA_MODE_MFA_OOB_OTP:
 	case OKTA_MODE_MFA_OOB:
 		okta_mfa_oob_auth(st);
 		break;
+	case OKTA_MODE_OOB_OTP:
 	case OKTA_MODE_OOB:
 		okta_oob_auth(st);
 		break;
 	case OKTA_MODE_DEVICE_AUTH:
 		okta_device_auth(st);
+		break;
+	case OKTA_MODE_MFA_OTP:
+		okta_mfa_otp_auth(st);
+		break;
+	case OKTA_MODE_OTP:
+		okta_otp_auth(st);
 		break;
 	default:
 		lwarnx("%s: unexpected st->mode %u", __func__, st->mode);

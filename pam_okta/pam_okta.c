@@ -91,6 +91,14 @@ parse_args(struct state *st, int argc, const char **argv)
 			st->mode = OKTA_MODE_OOB;
 		} else if (strcmp(argv[i], "mode=device") == 0) {
 			st->mode = OKTA_MODE_DEVICE_AUTH;
+		} else if (strcmp(argv[i], "mode=mfa-otp") == 0) {
+			st->mode = OKTA_MODE_MFA_OTP;
+		} else if (strcmp(argv[i], "mode=otp") == 0) {
+			st->mode = OKTA_MODE_OTP;
+		} else if (strcmp(argv[i], "mode=mfa-oob-otp") == 0) {
+			st->mode = OKTA_MODE_MFA_OOB_OTP;
+		} else if (strcmp(argv[i], "mode=oob-otp") == 0) {
+			st->mode = OKTA_MODE_OOB_OTP;
 		} else if (strcmp(argv[i], "allow_decline") == 0) {
 			st->flags |= OKTA_F_ALLOW_DECLINE;
 		} else if (strncmp(argv[i], sockopt, SOCKOPTLEN) == 0) {
@@ -209,10 +217,14 @@ okta_authn_prepare(struct state *st)
 	st->userlen = strlen(st->user) + 1;
 
 	/* Okta Verify Push (MFA) starts with the username and password */
-	if (st->mode == OKTA_MODE_MFA_OOB) {
+	switch (st->mode) {
+	case OKTA_MODE_MFA_OOB:
+	case OKTA_MODE_MFA_OTP:
+	case OKTA_MODE_MFA_OOB_OTP:
 		rv = okta_authn_password(pamh, st);
 		if (rv != PAM_SUCCESS)
 			return (rv);
+		break;
 	}
 
 	rv = pam_get_item(pamh, PAM_RHOST, &item);

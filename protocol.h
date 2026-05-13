@@ -48,6 +48,10 @@ struct ctl_authn_req {
 #define OKTA_MODE_MFA_OOB		0
 #define OKTA_MODE_OOB			1
 #define OKTA_MODE_DEVICE_AUTH		2
+#define OKTA_MODE_MFA_OTP		3
+#define OKTA_MODE_OTP			4
+#define OKTA_MODE_MFA_OOB_OTP		5
+#define OKTA_MODE_OOB_OTP		6
 	unsigned int		flags;
 #define OKTA_F_ALLOW_DECLINE		(1 << 0)
 

@@ -51,6 +51,30 @@ If password authentication is required, a preceding module in the stack
 must check it, or use the
 .Cm mfa-oob
 mode.
+.It Cm mfa-otp
+Authenticate the user with their password, and depending on the Okta
+service configuration, a one time password (OTP).
+It follows the Direct Authentication using the OTP (MFA) flow.
+.It Cm otp
+Authenticate the user with a one time password (OTP).
+It follows the Direct Authentication using the OTP (primary factor) flow.
+This mode does not verify the users password.
+If password authentication is required, a preceding module in the stack
+must check it, or use the
+.Cm mfa-otp
+mode.
+.It Cm mfa-oob-otp
+Authenticate the user with their password, and depending on the Okta
+service configuration, an out-of-band (OOB) push factor or one time
+password (OTP).
+.It Cm oob-otp
+Authenticate the user with an out-of-band (OOB) push factor or one time
+password (OTP).
+This mode does not verify the users password.
+If password authentication is required, a preceding module in the stack
+must check it, or use the
+.Cm mfa-oob-otp
+mode.
 .It Cm device
 Use the Device Authentication flow to authenticate the user.
 This mode does not verify the users password.
